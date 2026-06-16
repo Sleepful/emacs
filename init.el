@@ -21,6 +21,7 @@
 (require 'config-keybinds)
 (require 'config-completion)
 (require 'config-tools)
+(require 'config-lang)
 
 (provide 'init)
 ;;; init.el ends here

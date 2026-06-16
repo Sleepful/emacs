@@ -12,8 +12,7 @@
   :config
   (evil-mode 1))
 
-(define-key evil-insert-state-map (kbd "s-<backspace>")
-  (lambda () (interactive) (kill-line 0)))
+(global-set-key (kbd "s-<backspace>") (lambda () (interactive) (kill-line 0)))
 
 (with-eval-after-load 'evil
   (dolist (map '(minibuffer-local-map

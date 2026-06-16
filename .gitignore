@@ -4,6 +4,7 @@ auto-save-list/
 transient/
 tree-sitter/
 recentf
+projects
 .lsp-session*
 projectile-bookmarks.eld
 *.elc
