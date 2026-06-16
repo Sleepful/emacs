@@ -1,0 +1,9 @@
+elpa/
+eln-cache/
+auto-save-list/
+transient/
+tree-sitter/
+recentf
+.lsp-session*
+projectile-bookmarks.eld
+*.elc
