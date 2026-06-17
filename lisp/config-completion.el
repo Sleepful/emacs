@@ -28,6 +28,16 @@
 ;; Enhanced search and navigation commands (buffer switch, grep, line search)
 (use-package consult)
 
+(with-eval-after-load 'consult
+  (with-eval-after-load 'perspective
+    (plist-put consult-source-buffer :items
+               (lambda ()
+                 (consult--buffer-query
+                  :sort 'visibility
+                  :as #'consult--buffer-pair
+                  :predicate (lambda (buf)
+                               (memq buf (persp-current-buffers))))))))
+
 (defun consult-ripgrep-in-dir ()
   (interactive)
   (let ((dir (read-directory-name "Ripgrep in: ")))

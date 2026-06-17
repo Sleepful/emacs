@@ -7,17 +7,10 @@
                     :weight 'light)
 (setq text-scale-mode-step 1.05)
 
-;; Themes
-(use-package catppuccin-theme
-  :demand t
-  :init (setq catppuccin-flavor 'frappe)
-  :config (load-theme 'catppuccin t))
-
-(use-package ef-themes
-  :demand t)
-
-(use-package doom-themes
-  :demand t)
+;; Themes (installed but lazy-loaded; theme-state-load handles activation)
+(use-package catppuccin-theme)
+(use-package ef-themes)
+(use-package doom-themes)
 
 ;; Remove built-in themes from selection
 (setq custom-theme-load-path
@@ -26,6 +19,33 @@
                           (and (stringp p)
                                (file-in-directory-p p data-directory))))
                     custom-theme-load-path))
+
+;; Theme persistence
+(defvar theme-state-file
+  (expand-file-name "var/theme-state" user-emacs-directory))
+
+(defun theme-state-save (&rest _)
+  (let ((name (if (eq (car custom-enabled-themes) 'catppuccin)
+                  (concat "catppuccin-" (symbol-name catppuccin-flavor))
+                (symbol-name (or (car custom-enabled-themes) 'catppuccin)))))
+    (with-temp-file theme-state-file
+      (insert name))))
+
+(defun theme-state-load ()
+  (let ((choice (if (file-exists-p theme-state-file)
+                    (string-trim (with-temp-buffer
+                                   (insert-file-contents theme-state-file)
+                                   (buffer-string)))
+                  "catppuccin-frappe")))
+    (mapc #'disable-theme custom-enabled-themes)
+    (if (string-prefix-p "catppuccin-" choice)
+        (progn
+          (setq catppuccin-flavor (intern (string-remove-prefix "catppuccin-" choice)))
+          (load-theme 'catppuccin t))
+      (load-theme (intern choice) t))))
+
+(advice-add 'load-theme :after #'theme-state-save)
+(theme-state-load)
 
 (defvar favorite-themes
   '("catppuccin-latte"
@@ -72,19 +92,14 @@
                 ((and 'preview (guard cand))
                  (load-favorite-theme--apply cand)))))))
 
-;; Start screen with recent files and projects
-(use-package dashboard
-  :demand t
-  :config
-  (setq dashboard-projects-backend 'project-el)
-  (setq dashboard-items '((recents . 10)
-                           (projects . 5)))
-  (setq dashboard-center-content t)
-  (setq dashboard-startup-banner 'logo)
-  (setq initial-buffer-choice (lambda () (get-buffer-create "*dashboard*")))
-  (dashboard-setup-startup-hook))
+
 
 ;; UI basics
+(add-to-list 'default-frame-alist '(fullscreen . fullheight))
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (set-frame-width (selected-frame)
+                             (/ (display-pixel-width) 3) nil t)))
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
 (menu-bar-mode -1)
@@ -98,6 +113,11 @@
 ;; Quality-of-life
 (setq make-backup-files nil)
 (setq auto-save-default nil)
+(setq project-list-file (expand-file-name "var/projects" user-emacs-directory))
+(setq transient-history-file (expand-file-name "var/transient-history.el" user-emacs-directory))
+(setq transient-levels-file (expand-file-name "var/transient-levels.el" user-emacs-directory))
+(setq transient-values-file (expand-file-name "var/transient-values.el" user-emacs-directory))
+(setq recentf-save-file (expand-file-name "var/recentf" user-emacs-directory))
 (recentf-mode 1)
 (setq recentf-max-menu-items 25)
 (setq select-enable-clipboard t)
@@ -106,10 +126,13 @@
 (setq scroll-conservatively 101)
 (setq scroll-margin 4)
 
-;; macOS: inherit shell PATH so Emacs finds Homebrew binaries (rg, fd, etc.)
-(use-package exec-path-from-shell
-  :demand t
-  :config (exec-path-from-shell-initialize))
+;; macOS: add essential PATH directories directly (avoids 800ms shell spawn)
+(dolist (dir '("/opt/homebrew/bin"
+              "/opt/homebrew/sbin"
+              "/Users/jose/.asdf/shims"
+              "/Users/jose/.asdf/bin"))
+  (add-to-list 'exec-path dir))
+(setenv "PATH" (mapconcat #'identity exec-path path-separator))
 
 ;; macOS: make Option send Meta so Alt keybinds work in GUI
 (setq mac-option-modifier 'meta)
@@ -121,6 +144,8 @@
   :config
   (setq which-key-idle-delay 0.3)
   (setq which-key-idle-secondary-delay 0.1)
+  (setq which-key-max-display-columns nil)
+  (setq which-key-side-window-max-height 0.4)
   (define-key which-key-C-h-map (kbd "<next>") 'which-key-show-next-page-cycle)
   (define-key which-key-C-h-map (kbd "<prior>") 'which-key-show-previous-page-cycle))
 

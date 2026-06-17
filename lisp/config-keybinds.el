@@ -1,14 +1,18 @@
 ;;; config-keybinds.el --- Leader keys and keybindings -*- lexical-binding: t; -*-
 
 ;; Leader key priority (by ergonomic value):
-;;   ,   Premium.  Right index, home row adjacent.  -> project navigation
-;;   ;   Premium.  Right index, home row.           -> search
-;;   -   Premium.  Right hand, top row.             -> files
-;;   `   Good.     Left pinky, top row.             -> git/project
-;;   '   Decent.   Right pinky, top row.            -> toggles (reserved)
-;;   \   Okay.     Right pinky, bottom row.         -> windows/help (reserved)
+;;   ,   Premium.  Right index, home row adjacent.  -> search (unstructured)
+;;   -   Premium.  Right hand, top row.             -> navigation (structured)
+;;   ;   Good.     Right index, home row.           -> TBD
+;;   `   Good.     Left pinky, top row.             -> TBD
+;;   '   Decent.   Right pinky, top row.            -> reserved
+;;   \   Okay.     Right pinky, bottom row.         -> reserved
 ;;   SPC Categorical 2+ layer menu. Can nest deeper as needed
 ;;       (e.g. SPC g d f -> git diff file).
+;;
+;; Design principle for speed dials:
+;;   - (navigation) starts from structured containers: file trees, projects, perspectives
+;;   , (search) starts from unstructured queries: text patterns, buffer names, error lists
 
 (use-package general
   :demand t
@@ -57,14 +61,15 @@
 
 (spc-leader
   "b"   '(:ignore t :wk "buffers")
-  "b b" '(consult-buffer :wk "switch")
+  "b b" '(consult-buffer :wk "buffers")
+  "b B" '(persp-switch-to-buffer :wk "all buffers")
+  "b q" '(persp-quit-buffer :wk "quit")
   "b k" '(kill-buffer :wk "kill")
 
   "f"   '(:ignore t :wk "files")
-  "f f" '(find-file :wk "find")
+  "f f" '(find-file :wk "files")
   "f s" '(save-buffer :wk "save")
   "f r" '(recentf-open-files :wk "recent")
-  "f d" '(dirvish-side :wk "dirvish")
 
   "s"   '(:ignore t :wk "search")
   "s s" '(consult-line :wk "lines")
@@ -72,11 +77,15 @@
   "s f" '(consult-fd :wk "find file")
 
   "p"   '(:ignore t :wk "project")
-  "p p" '(project-switch-project :wk "switch project")
+  "p p" '(project-switch-project :wk "projects")
   "p f" '(project-find-file :wk "find file")
-  "p b" '(consult-project-buffer :wk "project buffer")
-  "p s" '(persp-switch :wk "perspective switch")
-  "p k" '(persp-kill :wk "perspective kill")
+  "p b" '(consult-project-buffer :wk "buffers")
+
+  "P"   '(:ignore t :wk "Perspective")
+  "P P" '(persp-switch :wk "perspectives")
+  "P b" '(consult-buffer :wk "buffers")
+  "P k" '(persp-kill :wk "kill")
+  "P r" '(persp-rename :wk "rename")
 
   "g"   '(:ignore t :wk "git")
   "g g" '(magit-status :wk "status")
@@ -86,6 +95,8 @@
   "g f" '(magit-file-dispatch :wk "file actions")
 
   "w"   '(:ignore t :wk "windows")
+
+  "l"   '(:ignore t :wk "layout")
 
   "t"   '(:ignore t :wk "toggles")
   "t t" '(consult-theme :wk "all themes")
@@ -99,37 +110,37 @@
 
   "h"   '(:ignore t :wk "help"))
 
-;;;; , -- project navigation (premium, right index, home row adjacent)
+;;;; , -- search (premium, right index, home row adjacent)
+;; Starts from unstructured queries: text patterns, buffer names, error lists.
 (comma-leader
-  "b" '(consult-project-buffer :wk "project buffer")
-  "B" '(consult-buffer :wk "all buffers")
-  "f" '(project-find-file :wk "find file in project")
-  "r" '(consult-ripgrep :wk "ripgrep project")
-  "d" '(consult-ripgrep-in-dir :wk "ripgrep directory")
-  "h" '(consult-recent-file-in-project :wk "recent project files")
-  "." '(dirvish :wk "dirvish here"))
-
-;;;; ; -- search (premium, right index, home row)
-(semi-leader
-  "s" '(consult-line :wk "search lines")
+  "," '(consult-buffer :wk "persp buffers")
+  "s" '(consult-line :wk "lines")
   "r" '(consult-ripgrep :wk "ripgrep")
-  "f" '(consult-fd :wk "find file"))
+  "f" '(consult-fd :wk "filenames")
+  "b" '(consult-project-buffer :wk "project buffers")
+  "d" '(consult-ripgrep-in-dir :wk "ripgrep dir")
+  "e" '(flymake-show-project-diagnostics :wk "errors"))
 
-;;;; - -- (premium, right hand, top row, reserved)
-;; (dash-leader)
+;;;; - -- navigation (premium, right hand, top row)
+;; Starts from structured containers: file trees, projects, perspectives.
+(dash-leader
+  "-" '(project-dired :wk "project root")
+  "p" '(project-switch-project :wk "projects")
+  "f" '(project-find-file :wk "project files")
+  "P" '(persp-switch :wk "perspectives")
+  "." '(dirvish :wk "dirvish here")
+  "d" '(dirvish-side :wk "sidebar"))
 
-;;;; ` -- git/project (good, left pinky, top row)
-(backtick-leader
-  "p" '(project-switch-project :wk "switch project")
-  "f" '(project-find-file :wk "find file in project")
-  "s" '(persp-switch :wk "switch perspective")
-  "P" '(persp-kill :wk "kill perspective")
-  "g" '(magit-status :wk "git status"))
+;;;; ; -- (good, right index, home row, TBD)
+;; (semi-leader)
 
-;;;; ' -- toggles (decent, right pinky, top row, reserved)
+;;;; ` -- (good, left pinky, top row, TBD)
+;; (backtick-leader)
+
+;;;; ' -- (decent, right pinky, top row, reserved)
 ;; (quote-leader)
 
-;;;; \ -- windows/help (okay, right pinky, bottom row, reserved)
+;;;; \ -- (okay, right pinky, bottom row, reserved)
 ;; (backslash-leader)
 
 (provide 'config-keybinds)
