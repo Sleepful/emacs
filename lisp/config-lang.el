@@ -21,22 +21,20 @@
   :mode "\\.odin\\'")
 
 ;; LSP via eglot (built-in)
-;; Delay eglot startup to avoid launching LSP for dirvish preview buffers
+;; Guard with selected-window check to avoid launching LSP for dirvish preview buffers
 (defun eglot-ensure-if-selected ()
-  (let ((buf (current-buffer)))
-    (run-with-idle-timer 1 nil
-      (lambda ()
-        (when (and (buffer-live-p buf)
-                   (eq buf (window-buffer (selected-window))))
-          (with-current-buffer buf
-            (eglot-ensure)))))))
+  (when (eq (current-buffer) (window-buffer (selected-window)))
+    (eglot-ensure)))
 
 (use-package eglot
   :hook ((typescript-ts-mode . eglot-ensure-if-selected)
          (tsx-ts-mode . eglot-ensure-if-selected)
          (odin-ts-mode . eglot-ensure-if-selected))
   :config
-  (add-to-list 'eglot-server-programs '(odin-ts-mode . ("ols"))))
+  (add-to-list 'eglot-server-programs '(odin-ts-mode . ("ols")))
+  (add-to-list 'eglot-server-programs
+               '((typescript-ts-mode tsx-ts-mode)
+                 . ("vtsls" "--stdio"))))
 
 (provide 'config-lang)
 ;;; config-lang.el ends here

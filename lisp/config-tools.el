@@ -17,6 +17,20 @@
      ((file-directory-p file) (dirvish-subtree-toggle))
      (t (dired-find-file)))))
 
+(defun dirvish-side-toggle ()
+  (interactive)
+  (let ((side-win (cl-find-if
+                   (lambda (w)
+                     (window-parameter w 'window-side))
+                   (window-list))))
+    (cond
+     ((and side-win (eq (selected-window) side-win))
+      (select-window (get-mru-window nil nil t)))
+     (side-win
+      (select-window side-win))
+     (t
+      (dirvish-side)))))
+
 (use-package dirvish
   :demand t
   :init
@@ -71,7 +85,7 @@
   :config
   (add-hook 'kill-emacs-hook #'persp-state-save)
   (add-hook 'persp-switch-hook #'persp-switch-set-project-root)
-  (add-hook 'emacs-startup-hook
+  (add-hook 'after-init-hook
             (lambda ()
               (when (file-exists-p persp-state-default-file)
                 (persp-state-load persp-state-default-file)
@@ -82,6 +96,10 @@
   :config
   (transient-append-suffix 'magit-rebase "-d"
     '("-D" "Regenerate author date" "--ignore-date")))
+
+(use-package magit-delta
+  :after magit
+  :hook (magit-mode . magit-delta-mode))
 
 ;; M-x restart-emacs
 (use-package restart-emacs)

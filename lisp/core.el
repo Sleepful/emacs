@@ -1,5 +1,11 @@
 ;;; core.el --- UI, quality-of-life, macOS settings -*- lexical-binding: t; -*-
 
+;; Fix PATH for GUI Emacs on macOS (launchd strips shell PATH)
+(use-package exec-path-from-shell
+  :demand t
+  :config
+  (exec-path-from-shell-initialize))
+
 ;; Font
 (set-face-attribute 'default nil
                     :family "Iosevka Nerd Font Mono"
@@ -95,11 +101,10 @@
 
 
 ;; UI basics
+(let ((w (/ (* (display-pixel-width) 3) 7)))
+  (add-to-list 'default-frame-alist (cons 'width (cons 'text-pixels w)))
+  (add-to-list 'initial-frame-alist (cons 'width (cons 'text-pixels w))))
 (add-to-list 'default-frame-alist '(fullscreen . fullheight))
-(add-hook 'emacs-startup-hook
-          (lambda ()
-            (set-frame-width (selected-frame)
-                             (/ (display-pixel-width) 3) nil t)))
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
 (menu-bar-mode -1)
@@ -148,6 +153,51 @@
   (setq which-key-side-window-max-height 0.4)
   (define-key which-key-C-h-map (kbd "<next>") 'which-key-show-next-page-cycle)
   (define-key which-key-C-h-map (kbd "<prior>") 'which-key-show-previous-page-cycle))
+
+;; Startup dashboard — perspectives and projects only
+(use-package dashboard
+  :demand t
+  :init
+  (setq dashboard-banner-logo-title "Emacs"
+        dashboard-startup-banner 'logo
+        dashboard-center-content t
+        dashboard-show-shortcuts nil
+        dashboard-set-heading-icons nil
+        dashboard-set-file-icons nil
+        dashboard-set-navigator nil
+        dashboard-page-separator "\n"
+        dashboard-items '((perspectives . 10) (projects . 10))
+        initial-buffer-choice (lambda () (get-buffer-create dashboard-buffer-name)))
+  :config
+  (add-hook 'dashboard-after-initialize-hook
+            (lambda ()
+              (goto-char (point-min))
+              (when (search-forward "Perspectives:" nil t)
+                (forward-line 1)
+                (beginning-of-line))))
+  (defun dashboard-insert-perspectives (list-size)
+    (require 'perspective)
+    (dashboard-insert-heading "Perspectives:" nil (dashboard-heading-icon 'perspectives))
+    (if-let ((persps (ignore-errors (hash-table-keys (perspectives-hash)))))
+        (progn
+          (mapc (lambda (el)
+                  (insert "\n")
+                  (insert (spaces-string (or standard-indent tab-width 4)))
+                  (widget-create 'item
+                                 :tag el
+                                 :action `(lambda (&rest _) (persp-switch ,el))
+                                 :button-face 'dashboard-items-face
+                                 :mouse-face 'highlight
+                                 :button-prefix ""
+                                 :button-suffix ""
+                                 :format "%[%t%]"))
+                (dashboard-subseq persps list-size))
+          (when-let ((sc (dashboard-get-shortcut 'perspectives)))
+            (dashboard-insert-shortcut 'perspectives sc "Perspectives:")))
+      (insert (propertize "\n    --- No items ---" 'face 'dashboard-no-items-face))))
+  (add-to-list 'dashboard-item-generators '(perspectives . dashboard-insert-perspectives))
+  (add-to-list 'dashboard-item-shortcuts '(perspectives . "s"))
+  (dashboard-setup-startup-hook))
 
 (provide 'core)
 ;;; core.el ends here

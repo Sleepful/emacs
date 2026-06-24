@@ -74,18 +74,14 @@
   "s"   '(:ignore t :wk "search")
   "s s" '(consult-line :wk "lines")
   "s r" '(consult-ripgrep :wk "ripgrep")
-  "s f" '(consult-fd :wk "find file")
+  "s f" '(project-find-file :wk "find file")
+  "s F" '(consult-fd-in-dir :wk "fd by dir")
+  "s d" '(consult-ripgrep-in-dir :wk "ripgrep by dir")
 
   "p"   '(:ignore t :wk "project")
   "p p" '(project-switch-project :wk "projects")
   "p f" '(project-find-file :wk "find file")
   "p b" '(consult-project-buffer :wk "buffers")
-
-  "P"   '(:ignore t :wk "Perspective")
-  "P P" '(persp-switch :wk "perspectives")
-  "P b" '(consult-buffer :wk "buffers")
-  "P k" '(persp-kill :wk "kill")
-  "P r" '(persp-rename :wk "rename")
 
   "g"   '(:ignore t :wk "git")
   "g g" '(magit-status :wk "status")
@@ -97,6 +93,10 @@
   "w"   '(:ignore t :wk "windows")
 
   "l"   '(:ignore t :wk "layout")
+  "l l" '(persp-switch :wk "layouts")
+  "l b" '(consult-buffer :wk "buffers")
+  "l k" '(persp-kill :wk "kill")
+  "l r" '(persp-rename :wk "rename")
 
   "t"   '(:ignore t :wk "toggles")
   "t t" '(consult-theme :wk "all themes")
@@ -113,26 +113,35 @@
 ;;;; , -- search (premium, right index, home row adjacent)
 ;; Starts from unstructured queries: text patterns, buffer names, error lists.
 (comma-leader
-  "," '(consult-buffer :wk "persp buffers")
+  "," '(project-find-file :wk "project files")
+  "b" '(consult-buffer :wk "buffers")
   "s" '(consult-line :wk "lines")
   "r" '(consult-ripgrep :wk "ripgrep")
-  "f" '(consult-fd :wk "filenames")
-  "b" '(consult-project-buffer :wk "project buffers")
-  "d" '(consult-ripgrep-in-dir :wk "ripgrep dir")
+  "f" '(project-find-file :wk "find file")
+  "d" '(dirvish-side-toggle :wk "sidebar dirvish")
   "e" '(flymake-show-project-diagnostics :wk "errors"))
 
 ;;;; - -- navigation (premium, right hand, top row)
 ;; Starts from structured containers: file trees, projects, perspectives.
 (dash-leader
-  "-" '(project-dired :wk "project root")
+  "-" '(dirvish :wk "dirvish here")
   "p" '(project-switch-project :wk "projects")
   "f" '(project-find-file :wk "project files")
-  "P" '(persp-switch :wk "perspectives")
-  "." '(dirvish :wk "dirvish here")
-  "d" '(dirvish-side :wk "sidebar"))
+  "l" '(persp-switch :wk "layouts"))
 
-;;;; ; -- (good, right index, home row, TBD)
-;; (semi-leader)
+;;;; ; -- code intelligence (right index, home row, LSP navigation)
+;; Symbol traversal, not unstructured search. Named "code" not "LSP"
+;; to avoid binding to an implementation detail.
+(semi-leader
+  "d" '(xref-find-definitions :wk "definition")
+  "D" '(eglot-find-declaration :wk "declaration")
+  "r" '(xref-find-references :wk "references")
+  "i" '(eglot-find-implementation :wk "implementation")
+  "t" '(eglot-find-typeDefinition :wk "type def")
+  "R" '(eglot-rename :wk "rename")
+  "a" '(eglot-code-actions :wk "actions")
+  "b" '(xref-go-back :wk "back")
+  "f" '(xref-go-forward :wk "forward"))
 
 ;;;; ` -- (good, left pinky, top row, TBD)
 ;; (backtick-leader)
