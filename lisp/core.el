@@ -213,23 +213,29 @@
                 (forward-line 1)
                 (beginning-of-line))))
   (defun dashboard-insert-perspectives (list-size)
+    "Insert perspective list from my-persp-names (live + on-disk).
+Loaded perspectives use persp-switch directly; unloaded ones (dimmed)
+use my-persp-switch which loads from disk before switching."
     (require 'perspective)
     (dashboard-insert-heading "Perspectives:" nil (dashboard-heading-icon 'perspectives))
-    (if-let ((persps (ignore-errors
-                       (seq-remove (lambda (n) (string-match-p "\\`[0-9a-f]\\{8\\}\\'" n))
-                                   (hash-table-keys (perspectives-hash))))))
+    (if-let ((persps (ignore-errors (my-persp-names))))
         (progn
           (mapc (lambda (el)
-                  (insert "\n")
-                  (insert (spaces-string (or standard-indent tab-width 4)))
-                  (widget-create 'item
-                                 :tag el
-                                 :action `(lambda (&rest _) (persp-switch ,el))
-                                 :button-face 'dashboard-items-face
-                                 :mouse-face 'highlight
-                                 :button-prefix ""
-                                 :button-suffix ""
-                                 :format "%[%t%]"))
+                  (let ((loaded (gethash el (perspectives-hash))))
+                    (insert "\n")
+                    (insert (spaces-string (or standard-indent tab-width 4)))
+                    (widget-create 'item
+                                   :tag (if loaded el (propertize el 'face 'shadow))
+                                   :action (if loaded
+                                               `(lambda (&rest _) (persp-switch ,el))
+                                             (if (fboundp 'my-persp-switch)
+                                                 `(lambda (&rest _) (my-persp-switch ,el))
+                                               `(lambda (&rest _) (persp-switch ,el))))
+                                   :button-face 'dashboard-items-face
+                                   :mouse-face 'highlight
+                                   :button-prefix ""
+                                   :button-suffix ""
+                                   :format "%[%t%]")))
                 (dashboard-subseq persps list-size))
           (when-let ((sc (dashboard-get-shortcut 'perspectives)))
             (dashboard-insert-shortcut 'perspectives sc "Perspectives:")))

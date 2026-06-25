@@ -25,6 +25,8 @@
   :demand t
   :init (marginalia-mode))
 
+(require 'ansi-color)
+
 ;; Enhanced search and navigation commands (buffer switch, grep, line search)
 (use-package consult)
 

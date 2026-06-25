@@ -134,7 +134,7 @@ _l_ → right   _L_ → right                                _{_  prev
   "w"   '(hydra-window/body :wk "windows")
 
   "l"   '(:ignore t :wk "layout")
-  "l l" '(persp-switch :wk "layouts")
+  "l l" '(my-persp-switch :wk "layouts")
   "l b" '(consult-buffer :wk "buffers")
   "l k" '(persp-kill :wk "kill")
   "l r" '(persp-rename :wk "rename")
@@ -160,6 +160,7 @@ _l_ → right   _L_ → right                                _{_  prev
   "r" '(consult-ripgrep :wk "ripgrep")
   "f" '(project-find-file :wk "find file")
   "d" '(dirvish-side-toggle :wk "sidebar dirvish")
+  "l" '(my-persp-switch :wk "layouts")
   "e" '(flymake-show-project-diagnostics :wk "errors"))
 
 ;;;; - -- navigation (premium, right hand, top row)
@@ -168,7 +169,7 @@ _l_ → right   _L_ → right                                _{_  prev
   "-" '(dirvish :wk "dirvish here")
   "p" '(project-switch-project :wk "projects")
   "f" '(project-find-file :wk "project files")
-  "l" '(persp-switch :wk "layouts"))
+  "l" '(my-persp-switch :wk "layouts"))
 
 ;;;; ; -- code intelligence (right index, home row, LSP navigation)
 ;; Symbol traversal, not unstructured search. Named "code" not "LSP"

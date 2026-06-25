@@ -79,50 +79,158 @@
   :demand t
   :init
   (setq persp-suppress-no-prefix-key-warning t)
+  (setq persp-switch-to-buffer-behavior nil)
   (setq persp-state-default-file
         (expand-file-name "var/perspective-state" user-emacs-directory))
   (persp-mode)
   :config
-  (add-hook 'kill-emacs-hook #'persp-state-save)
+  (add-hook 'kill-emacs-hook #'my-persp-save-all)
   (add-hook 'persp-switch-hook #'persp-switch-set-project-root)
   (add-hook 'persp-created-hook
             (lambda ()
               (when (get-buffer "*Messages*")
                 (persp-add-buffer "*Messages*"))))
 
-  ;; Strip non-GUI frame hashes before anything touches them
+  ;; ── Per-perspective state files ────────────────────────────────
+  ;;
+  ;; Each perspective is saved as var/perspectives/<name>.el.
+  ;; Only the active perspective is saved on switch-away (:before advice
+  ;; on persp-switch).  my-persp-save-all saves all perspectives at
+  ;; kill-emacs, reading struct data directly for non-current ones to
+  ;; avoid context switches (which would import buffers across perspectives).
+  ;; my-persp-load switches first, then opens files (suppressed eglot),
+  ;; wrapped in my-persp-saving guard so the :before advice doesn't fire
+  ;; during load.
+
+  (defvar my-persp-dir
+    (expand-file-name "var/perspectives" user-emacs-directory))
+
+  (defun my-persp-file (name)
+    "State file path for perspective NAME."
+    (expand-file-name (concat name ".el") my-persp-dir))
+
+  (defun my-persp-save (&optional name)
+    "Save perspective NAME to var/perspectives/<name>.el.
+Assumes caller is already in the target perspective (the :before
+advice fires before persp-switch changes context)."
+    (let* ((name (or name (persp-current-name)))
+           (file (my-persp-file name))
+           (persp (gethash name (perspectives-hash))))
+        (when (and persp (not (persp-killed-p persp)))
+          (persp-save)
+          (make-directory my-persp-dir t)
+          (let ((data `(persp-state
+                            (buffers
+                             ,(cl-loop for b in (persp-current-buffers)
+                                       when (buffer-file-name b)
+                                       collect (buffer-file-name b)))
+                            (windows
+                             ,(window-state-get (frame-root-window) t))
+                            (point ,(point)))))
+               (with-temp-file file
+                 (prin1 data (current-buffer)))))))
+
+  (defun my-persp-load (name)
+    "Load perspective NAME from its state file into the current frame."
+    (let ((file (my-persp-file name)))
+      (when (file-exists-p file)
+        (let* ((data (with-temp-buffer
+                       (insert-file-contents file)
+                       (read (current-buffer))))
+               (buffers (cadr (assq 'buffers data)))
+               (windows (cadr (assq 'windows data)))
+               (point-pos (cadr (assq 'point data)))
+               (eglot-server-programs nil)    ;; suppress LSP during file open
+               (my-eglot-suppressed t))
+          ;; Switch to perspective FIRST so files open into it
+          (unless (gethash name (perspectives-hash))
+            (persp-switch name))
+          ;; Open files — they go into the target perspective
+          (dolist (f buffers)
+            (when (file-exists-p f)
+              (find-file f)))
+          ;; Ensure all opened buffers are in the perspective
+          (dolist (b buffers)
+            (when-let ((buf (get-file-buffer b)))
+              (unless (persp-is-current-buffer buf)
+                (persp-add-buffer buf))))
+          ;; Restore window layout
+          (when windows
+            (ignore-errors
+              (window-state-put windows (frame-root-window) 'safe)))
+          ;; Restore point
+          (ignore-errors
+            (goto-char point-pos))))
+        t)))
+
+  (defun my-persp-save-all ()
+    "Save all live perspectives to their per-perspective files."
+    (dolist (name (hash-table-keys (perspectives-hash)))
+      (if (equal name (persp-current-name))
+          (ignore-errors (my-persp-save name))
+        (let* ((persp (gethash name (perspectives-hash)))
+               (file (my-persp-file name)))
+          (when (and persp (not (persp-killed-p persp)))
+            (make-directory my-persp-dir t)
+            (let* ((buffers (cl-loop for b in (persp-buffers persp)
+                                     when (and (buffer-live-p b)
+                                               (buffer-file-name b))
+                                     collect (buffer-file-name b)))
+                   (point (when-let ((m (persp-point-marker persp)))
+                            (and (marker-position m)
+                                 (marker-position m))))
+                   (data `(persp-state (buffers ,buffers)
+                           (windows nil)    ;; non-current: can't serialize
+                           (point ,point))))
+              (with-temp-file file
+                (prin1 data (current-buffer)))))))))
+
+  (defun my-persp-names ()
+    "Return all known perspective names (live + on-disk)."
+    (delete-dups
+     (append (hash-table-keys (perspectives-hash))
+             (when (file-directory-p my-persp-dir)
+               (mapcar (lambda (f) (file-name-base f))
+                       (directory-files my-persp-dir nil "\\.el\\'"))))))
+
+  (defun my-persp-loaded-p (name)
+    "Return t if perspective NAME is currently loaded."
+    (and (gethash name (perspectives-hash)) t))
+
+  (defun my-persp-switch (name)
+    "Switch to perspective NAME, loading from disk if not yet loaded."
+    (interactive
+     (list (completing-read "Perspective: " (my-persp-names) nil nil)))
+    (unless (my-persp-loaded-p name)
+      (message "Loading perspective %s..." name)
+      (let ((my-persp-saving t))
+        (my-persp-load name)))
+    (persp-switch name))
+
+  ;; Save outgoing perspective BEFORE switch (hook fires after, too late)
+  (defvar my-persp-saving nil)
+  (advice-add 'persp-switch :before
+              (lambda (name &rest _)
+                (unless my-persp-saving
+                  (when-let ((old-name (persp-current-name)))
+                    (unless (equal old-name name)
+                      (let ((my-persp-saving t))
+                        (ignore-errors (my-persp-save old-name))))))))
+
+  ;; Delete state file when perspective is killed
+  (add-hook 'persp-killed-hook
+            (lambda ()
+              (ignore-errors
+                (delete-file (my-persp-file (persp-current-name))))))
+
+  ;; ── Daemon: strip terminal frame hash ──────────────────────────
+
   (add-hook 'after-init-hook
             (lambda ()
               (dolist (frame (frame-list))
                 (unless (display-graphic-p frame)
                   (set-frame-parameter frame 'persp--hash nil)
                   (set-frame-parameter frame 'persp--curr nil)))))
-
-  ;; Load state when GUI frame exists (selected-frame is the client frame)
-  (defvar my-persp-state-loaded nil)
-  (add-hook 'server-after-make-frame-hook
-            (lambda ()
-              (when (and (display-graphic-p) (not my-persp-state-loaded))
-                (setq my-persp-state-loaded t)
-                ;; Suppress eglot during state load — avoids LSP startup per file
-                (let ((eglot-server-programs nil)
-                      (my-eglot-suppressed t))
-                  (when (file-exists-p persp-state-default-file)
-                    (ignore-errors
-                      (persp-state-load persp-state-default-file)
-                      (persp-switch "main")))
-                  (dolist (name (hash-table-keys (perspectives-hash)))
-                    (when (string-match-p "\\`[0-9a-f]\\{8\\}\\'" name)
-                      (ignore-errors (persp-kill name))))
-                  (when (fboundp 'dashboard-insert-startupify-lists)
-                    (dashboard-insert-startupify-lists t)
-                    (when (get-buffer dashboard-buffer-name)
-                      (with-current-buffer dashboard-buffer-name
-                        (goto-char (point-min))
-                        (when (search-forward "Perspectives:" nil t)
-                          (forward-line 1)
-                          (beginning-of-line)))))))))
-)
 
 ;; Git interface
 
@@ -140,7 +248,7 @@
 (defun my-restart-emacs ()
   "Restart the Emacs daemon and reconnect in one action."
   (interactive)
-  (persp-state-save)     ;; save before server-force-delete destroys client frames
+  (my-persp-save-all)     ;; save before server-force-delete destroys client frames
   (let ((name server-name)
         (bin (expand-file-name invocation-name invocation-directory)))
     (call-process "sh" nil 0 nil "-c"
