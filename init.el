@@ -33,9 +33,10 @@
   '(package-selected-packages
     '(catppuccin-theme consult dashboard dash dirvish doom-themes
 		      ef-themes evil evil-collection exec-path-from-shell
-		      general magit magit-delta marginalia odin-ts-mode
-		      orderless perspective restart-emacs treesit-auto
-		      use-package vertico which-key))
+		      general hydra magit magit-delta marginalia
+		      odin-ts-mode orderless outline-indent perspective
+		      restart-emacs treesit-auto use-package vertico
+		      which-key))
  '(package-vc-selected-packages
    '((odin-ts-mode :url "https://github.com/Sampie159/odin-ts-mode"))))
 (custom-set-faces

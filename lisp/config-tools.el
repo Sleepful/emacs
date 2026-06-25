@@ -85,11 +85,38 @@
   :config
   (add-hook 'kill-emacs-hook #'persp-state-save)
   (add-hook 'persp-switch-hook #'persp-switch-set-project-root)
+  (add-hook 'persp-created-hook
+            (lambda ()
+              (when (get-buffer "*Messages*")
+                (persp-add-buffer "*Messages*"))))
+
+  ;; Strip non-GUI frame hashes before anything touches them
   (add-hook 'after-init-hook
             (lambda ()
-              (when (file-exists-p persp-state-default-file)
-                (persp-state-load persp-state-default-file)
-                (persp-switch "main")))))
+              (dolist (frame (frame-list))
+                (unless (display-graphic-p frame)
+                  (set-frame-parameter frame 'persp--hash nil)
+                  (set-frame-parameter frame 'persp--curr nil)))))
+
+  ;; Load state when GUI frame exists (selected-frame is the client frame)
+  (defvar my-persp-state-loaded nil)
+  (add-hook 'server-after-make-frame-hook
+            (lambda ()
+              (when (and (display-graphic-p) (not my-persp-state-loaded))
+                (setq my-persp-state-loaded t)
+                (when (file-exists-p persp-state-default-file)
+                  (ignore-errors
+                    (persp-state-load persp-state-default-file)
+                    (persp-switch "main"))
+                  (dolist (name (hash-table-keys (perspectives-hash)))
+                    (when (string-match-p "\\`[0-9a-f]\\{8\\}\\'" name)
+                      (ignore-errors (persp-kill name))))
+                  ;; Dashboard rendered before state loaded; refresh it
+                  (when (fboundp 'dashboard-insert-startupify-lists)
+                    (dashboard-insert-startupify-lists t))))))
+)
+
+;; Git interface
 
 ;; Git interface
 (use-package magit
@@ -101,8 +128,19 @@
   :after magit
   :hook (magit-mode . magit-delta-mode))
 
-;; M-x restart-emacs
-(use-package restart-emacs)
+;; One-shot restart: kills daemon, starts new one, opens Emacs Client.app
+(defun my-restart-emacs ()
+  "Restart the Emacs daemon and reconnect in one action."
+  (interactive)
+  (persp-state-save)     ;; save before server-force-delete destroys client frames
+  (let ((name server-name)
+        (bin (expand-file-name invocation-name invocation-directory)))
+    (call-process "sh" nil 0 nil "-c"
+                  (format "nohup sh -c 'sleep 1 && %s --daemon=%s && sleep 1 && emacsclient -c -n' >/dev/null 2>&1 &"
+                          (shell-quote-argument bin)
+                          (shell-quote-argument name))))
+  (server-force-delete)
+  (kill-emacs))
 
 (provide 'config-tools)
 ;;; config-tools.el ends here

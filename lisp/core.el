@@ -3,8 +3,14 @@
 ;; Fix PATH for GUI Emacs on macOS (launchd strips shell PATH)
 (use-package exec-path-from-shell
   :demand t
+  :init
+  (setq exec-path-from-shell-check-startup-files nil)
   :config
   (exec-path-from-shell-initialize))
+
+;; Server for emacsclient (--daemon starts its own server; this is for GUI mode)
+(unless (daemonp)
+  (server-start))
 
 ;; Font
 (set-face-attribute 'default nil
@@ -101,9 +107,13 @@
 
 
 ;; UI basics
-(let ((w (/ (* (display-pixel-width) 3) 7)))
-  (add-to-list 'default-frame-alist (cons 'width (cons 'text-pixels w)))
-  (add-to-list 'initial-frame-alist (cons 'width (cons 'text-pixels w))))
+;; Frame size — pixel-based when on GUI, column fallback for daemon/terminal
+(if (display-graphic-p)
+    (let ((w (/ (* (display-pixel-width) 3) 7)))
+      (add-to-list 'default-frame-alist (cons 'width (cons 'text-pixels w)))
+      (add-to-list 'initial-frame-alist (cons 'width (cons 'text-pixels w))))
+  (add-to-list 'default-frame-alist '(width . 120))
+  (add-to-list 'initial-frame-alist '(width . 120)))
 (add-to-list 'default-frame-alist '(fullscreen . fullheight))
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
@@ -128,6 +138,7 @@
 (setq select-enable-clipboard t)
 (pixel-scroll-precision-mode 1)
 (setq pixel-scroll-precision-use-momentum t)
+(setq pixel-scroll-precision-interpolate-page nil)
 (setq scroll-conservatively 101)
 (setq scroll-margin 4)
 
@@ -142,6 +153,30 @@
 ;; macOS: make Option send Meta so Alt keybinds work in GUI
 (setq mac-option-modifier 'meta)
 (setq mac-right-option-modifier 'none)
+
+;; Tabs (vim-tab equiv within a perspective, independent window layouts)
+(tab-bar-mode 1)
+(setq tab-bar-show 1)
+(setq tab-bar-close-button-show nil)
+
+;; Folding — indentation-based (outline-indent on top of outline-minor-mode)
+(use-package outline-indent
+  :hook (prog-mode . outline-indent-minor-mode))
+
+(defun my-fold-level (level)
+  "Fold to LEVEL indentation depth. 1 = top-level only."
+  (interactive "p")
+  (outline-hide-sublevels level))
+
+(with-eval-after-load 'evil
+  (dolist (n (number-sequence 1 9))
+    (define-key evil-normal-state-map (kbd (format "z %d" n))
+                `(lambda () (interactive) (outline-hide-sublevels ,n))))
+  (define-key evil-normal-state-map (kbd "z s")
+              (lambda ()
+                (interactive)
+                (when-let ((level (outline-level)))
+                  (outline-hide-sublevels level)))))
 
 ;; Popup showing available keybindings after a prefix
 (use-package which-key
@@ -178,7 +213,9 @@
   (defun dashboard-insert-perspectives (list-size)
     (require 'perspective)
     (dashboard-insert-heading "Perspectives:" nil (dashboard-heading-icon 'perspectives))
-    (if-let ((persps (ignore-errors (hash-table-keys (perspectives-hash)))))
+    (if-let ((persps (ignore-errors
+                       (seq-remove (lambda (n) (string-match-p "\\`[0-9a-f]\\{8\\}\\'" n))
+                                   (hash-table-keys (perspectives-hash))))))
         (progn
           (mapc (lambda (el)
                   (insert "\n")

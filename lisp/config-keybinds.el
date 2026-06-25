@@ -56,6 +56,46 @@
     :keymaps 'override
     :prefix "\\"))
 
+(use-package hydra
+  :demand t
+  :config
+  (defhydra hydra-window (:hint nil)
+    "
+    ^Move^        ^Swap^        ^Split^       ^Close^       ^Tabs^
+_h_ ← left    _H_ ← left    _v_  →        _q_  close     _c_  new
+_j_ ↓ down    _J_ ↓ down    _s_  ↓        _o_  only      _C_  kill
+_k_ ↑ up      _K_ ↑ up      _=_  balance   _w_  other     _r_  rename
+_l_ → right   _L_ → right                                _{_  prev
+← ↑ ↓ →       S-← S-↑ S-↓ S-→                              _}_  next
+"
+    ("h" windmove-left)
+    ("j" windmove-down)
+    ("k" windmove-up)
+    ("l" windmove-right)
+    ("<left>" windmove-left)
+    ("<down>" windmove-down)
+    ("<up>" windmove-up)
+    ("<right>" windmove-right)
+    ("<S-left>" windmove-swap-states-left)
+    ("<S-down>" windmove-swap-states-down)
+    ("<S-up>" windmove-swap-states-up)
+    ("<S-right>" windmove-swap-states-right)
+    ("H" windmove-swap-states-left)
+    ("J" windmove-swap-states-down)
+    ("K" windmove-swap-states-up)
+    ("L" windmove-swap-states-right)
+    ("v" split-window-right)
+    ("s" split-window-below)
+    ("q" delete-window)
+    ("o" delete-other-windows)
+    ("=" balance-windows)
+    ("w" other-window)
+    ("c" tab-new)
+    ("C" tab-close)
+    ("r" tab-rename)
+    ("{" tab-previous)
+    ("}" tab-next)))
+
 ;;;; SPC -- categorical menu
 ;; Layers can nest deeper than 2 when needed (e.g. SPC g d f -> git diff file).
 
@@ -77,6 +117,7 @@
   "s f" '(project-find-file :wk "find file")
   "s F" '(consult-fd-in-dir :wk "fd by dir")
   "s d" '(consult-ripgrep-in-dir :wk "ripgrep by dir")
+  "s i" '(consult-imenu :wk "file symbols")
 
   "p"   '(:ignore t :wk "project")
   "p p" '(project-switch-project :wk "projects")
@@ -90,7 +131,7 @@
   "g d" '(magit-diff-dwim :wk "diff")
   "g f" '(magit-file-dispatch :wk "file actions")
 
-  "w"   '(:ignore t :wk "windows")
+  "w"   '(hydra-window/body :wk "windows")
 
   "l"   '(:ignore t :wk "layout")
   "l l" '(persp-switch :wk "layouts")

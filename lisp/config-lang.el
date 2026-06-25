@@ -21,9 +21,9 @@
   :mode "\\.odin\\'")
 
 ;; LSP via eglot (built-in)
-;; Guard with selected-window check to avoid launching LSP for dirvish preview buffers
+;; Only start for file-backed buffers (skips dirvish preview, *scratch*, etc.)
 (defun eglot-ensure-if-selected ()
-  (when (eq (current-buffer) (window-buffer (selected-window)))
+  (when (buffer-file-name)
     (eglot-ensure)))
 
 (use-package eglot

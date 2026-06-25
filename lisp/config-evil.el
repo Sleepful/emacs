@@ -23,13 +23,17 @@
   :config
   (evil-collection-init)
   ;; Swap section vs sibling nav: [/] for section, C-j/C-k for sibling
-  (with-eval-after-load 'magit-section
-    (evil-define-key 'normal magit-mode-map "[" #'magit-section-backward)
-    (evil-define-key 'normal magit-mode-map "]" #'magit-section-forward)
-    (evil-define-key 'normal magit-mode-map (kbd "C-j") #'magit-section-backward-sibling)
-    (evil-define-key 'normal magit-mode-map (kbd "C-k") #'magit-section-forward-sibling)))
+  (add-hook 'evil-collection-setup-hook
+            (lambda (mode _mode-keymaps)
+              (when (eq mode 'magit)
+                (define-key magit-mode-map "[" #'magit-section-backward)
+                (define-key magit-mode-map "]" #'magit-section-forward)
+                (define-key magit-mode-map (kbd "C-j") #'magit-section-backward-sibling)
+                (define-key magit-mode-map (kbd "C-k") #'magit-section-forward-sibling)))))
 
 (global-set-key (kbd "s-<backspace>") (lambda () (interactive) (kill-line 0)))
+(global-set-key (kbd "C-<tab>") 'tab-next)
+(global-set-key (kbd "C-<S-iso-lefttab>") 'tab-previous)
 
 (with-eval-after-load 'evil
   ;; Escape to normal in minibuffers
