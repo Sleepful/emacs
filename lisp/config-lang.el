@@ -22,8 +22,13 @@
 
 ;; LSP via eglot (built-in)
 ;; Only start for file-backed buffers (skips dirvish preview, *scratch*, etc.)
+
+(defvar my-eglot-suppressed nil
+  "When non-nil, eglot skips auto-start. Bound during perspective state load.")
+
 (defun eglot-ensure-if-selected ()
-  (when (buffer-file-name)
+  (when (and (buffer-file-name)
+             (not my-eglot-suppressed))
     (eglot-ensure)))
 
 (use-package eglot

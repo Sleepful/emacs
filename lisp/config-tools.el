@@ -104,16 +104,24 @@
             (lambda ()
               (when (and (display-graphic-p) (not my-persp-state-loaded))
                 (setq my-persp-state-loaded t)
-                (when (file-exists-p persp-state-default-file)
-                  (ignore-errors
-                    (persp-state-load persp-state-default-file)
-                    (persp-switch "main"))
+                ;; Suppress eglot during state load — avoids LSP startup per file
+                (let ((eglot-server-programs nil)
+                      (my-eglot-suppressed t))
+                  (when (file-exists-p persp-state-default-file)
+                    (ignore-errors
+                      (persp-state-load persp-state-default-file)
+                      (persp-switch "main")))
                   (dolist (name (hash-table-keys (perspectives-hash)))
                     (when (string-match-p "\\`[0-9a-f]\\{8\\}\\'" name)
                       (ignore-errors (persp-kill name))))
-                  ;; Dashboard rendered before state loaded; refresh it
                   (when (fboundp 'dashboard-insert-startupify-lists)
-                    (dashboard-insert-startupify-lists t))))))
+                    (dashboard-insert-startupify-lists t)
+                    (when (get-buffer dashboard-buffer-name)
+                      (with-current-buffer dashboard-buffer-name
+                        (goto-char (point-min))
+                        (when (search-forward "Perspectives:" nil t)
+                          (forward-line 1)
+                          (beginning-of-line)))))))))
 )
 
 ;; Git interface

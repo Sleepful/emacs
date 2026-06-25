@@ -138,9 +138,11 @@
 (setq select-enable-clipboard t)
 (pixel-scroll-precision-mode 1)
 (setq pixel-scroll-precision-use-momentum t)
+(setq pixel-scroll-precision-momentum-seconds 0.05)
 (setq pixel-scroll-precision-interpolate-page nil)
-(setq scroll-conservatively 101)
-(setq scroll-margin 4)
+(setq scroll-conservatively most-positive-fixnum)
+(setq scroll-margin 0)
+(setq auto-window-vscroll nil)
 
 ;; macOS: add essential PATH directories directly (avoids 800ms shell spawn)
 (dolist (dir '("/opt/homebrew/bin"
