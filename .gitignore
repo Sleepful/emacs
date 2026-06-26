@@ -4,3 +4,5 @@ auto-save-list/
 tree-sitter/
 var/
 *.elc
+org-roam.db
+.org-id-locations

@@ -69,10 +69,16 @@
       (kill-buffer buf))))
 
 (defun persp-switch-set-project-root ()
-  (when-let* ((buf (cl-find-if #'buffer-file-name (persp-current-buffers)))
+  (when-let* ((buf (cl-find-if (lambda (b)
+                                 (when-let ((f (buffer-file-name b)))
+                                   (not (string-prefix-p org-roam-directory
+                                                         (expand-file-name f)))))
+                               (persp-current-buffers)))
               (file (buffer-file-name buf))
-              (pr (project-current nil (file-name-directory file))))
-    (setq default-directory (project-root pr))))
+              (pr (project-current nil (file-name-directory file)))
+              (root (project-root pr)))
+    (setq default-directory root)
+    (my-persp-set-last-project-root root)))
 
 ;; Per-project workspaces with isolated buffer lists and window layouts
 (use-package perspective
@@ -86,6 +92,7 @@
   :config
   (add-hook 'kill-emacs-hook #'my-persp-save-all)
   (add-hook 'persp-switch-hook #'persp-switch-set-project-root)
+  (add-hook 'persp-created-hook #'persp-switch-set-project-root)
   (add-hook 'persp-created-hook
             (lambda ()
               (when (get-buffer "*Messages*")

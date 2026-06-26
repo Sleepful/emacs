@@ -19,7 +19,7 @@
   :after evil
   :demand t
   :init
-  (setq evil-collection-mode-list '(magit eglot))
+  (setq evil-collection-mode-list '(magit eglot org-roam))
   :config
   (evil-collection-init)
   ;; Swap section vs sibling nav: [/] for section, C-j/C-k for sibling

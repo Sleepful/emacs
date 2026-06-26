@@ -139,6 +139,11 @@ _l_ → right   _L_ → right                                _{_  prev
   "l k" '(persp-kill :wk "kill")
   "l r" '(persp-rename :wk "rename")
 
+  "q"   '(:ignore t :wk "quit")
+  "q q" '(save-buffers-kill-emacs :wk "quit")
+  "q Q" '(kill-emacs :wk "force quit")
+  "q r" '(my-restart-emacs :wk "restart")
+
   "t"   '(:ignore t :wk "toggles")
   "t t" '(consult-theme :wk "all themes")
   "t f" '(load-favorite-theme :wk "favorite themes")
@@ -149,7 +154,15 @@ _l_ → right   _L_ → right                                _{_  prev
   "e n" '(flymake-goto-next-error :wk "next error")
   "e p" '(flymake-goto-prev-error :wk "prev error")
 
-  "h"   '(:ignore t :wk "help"))
+  "h"   '(:ignore t :wk "help")
+
+  "n"   '(:ignore t :wk "notes")
+  "n f" '(org-roam-node-find :wk "find node")
+  "n i" '(org-roam-node-insert :wk "insert link")
+  "n c" '(org-roam-capture :wk "capture")
+  "n t" '(org-roam-tag-add :wk "tag")
+  "n b" '(org-roam-buffer-toggle :wk "backlinks")
+  "n g" '(org-roam-graph :wk "graph"))
 
 ;;;; , -- search (premium, right index, home row adjacent)
 ;; Starts from unstructured queries: text patterns, buffer names, error lists.

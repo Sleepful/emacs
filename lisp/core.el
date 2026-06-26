@@ -19,6 +19,11 @@
                     :weight 'light)
 (setq text-scale-mode-step 1.05)
 
+;; Suppress native-comp warnings for noisy third-party packages
+(with-eval-after-load 'comp
+  (add-to-list 'native-comp-jit-compilation-deny-list "org-roam-")
+  (add-to-list 'native-comp-jit-compilation-deny-list "evil-org"))
+
 ;; Themes (installed but lazy-loaded; theme-state-load handles activation)
 (use-package catppuccin-theme)
 (use-package ef-themes)
