@@ -201,8 +201,12 @@ _l_ → right   _L_ → right                                _{_  prev
 ;;;; ` -- (good, left pinky, top row, TBD)
 ;; (backtick-leader)
 
-;;;; ' -- (decent, right pinky, top row, reserved)
-;; (quote-leader)
+;;;; ' -- (file I/O: write, revert, duplicate, copy path)
+(quote-leader
+  "w" '(save-buffer :wk "write")
+  "r" '(revert-buffer :wk "revert")
+  "d" '(write-file :wk "duplicate")
+  "y" '(my-copy-file-name :wk "yank path"))
 
 ;;;; \ -- (okay, right pinky, bottom row, reserved)
 ;; (backslash-leader)

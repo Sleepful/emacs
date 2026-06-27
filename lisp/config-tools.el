@@ -268,5 +268,13 @@ advice fires before persp-switch changes context)."
   (server-force-delete)
   (kill-emacs))
 
+(defun my-copy-file-name ()
+  "Copy the current buffer's file path to the kill ring."
+  (interactive)
+  (if-let ((f (buffer-file-name)))
+      (progn (kill-new f)
+             (message "Copied: %s" f))
+    (message "No file for this buffer")))
+
 (provide 'config-tools)
 ;;; config-tools.el ends here
