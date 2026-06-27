@@ -114,14 +114,14 @@ _l_ → right   _L_ → right                                _{_  prev
   "s"   '(:ignore t :wk "search")
   "s s" '(consult-line :wk "lines")
   "s r" '(consult-ripgrep :wk "ripgrep")
-  "s f" '(project-find-file :wk "find file")
+  "s f" '(my-persp-project-find-file :wk "find file")
   "s F" '(consult-fd-in-dir :wk "fd by dir")
   "s d" '(consult-ripgrep-in-dir :wk "ripgrep by dir")
   "s i" '(consult-imenu :wk "file symbols")
 
   "p"   '(:ignore t :wk "project")
   "p p" '(project-switch-project :wk "projects")
-  "p f" '(project-find-file :wk "find file")
+  "p f" '(my-persp-project-find-file :wk "find file")
   "p b" '(consult-project-buffer :wk "buffers")
 
   "g"   '(:ignore t :wk "git")
@@ -167,11 +167,11 @@ _l_ → right   _L_ → right                                _{_  prev
 ;;;; , -- search (premium, right index, home row adjacent)
 ;; Starts from unstructured queries: text patterns, buffer names, error lists.
 (comma-leader
-  "," '(project-find-file :wk "project files")
-  "b" '(consult-buffer :wk "buffers")
+  "," '(consult-buffer :wk "buffers")
+  "B" '(persp-switch-to-buffer :wk "all buffers")
+  "f" '(my-persp-project-find-file :wk "find file")
   "s" '(consult-line :wk "lines")
   "r" '(consult-ripgrep :wk "ripgrep")
-  "f" '(project-find-file :wk "find file")
   "d" '(dirvish-side-toggle :wk "sidebar dirvish")
   "l" '(my-persp-switch :wk "layouts")
   "e" '(flymake-show-project-diagnostics :wk "errors"))
@@ -181,7 +181,7 @@ _l_ → right   _L_ → right                                _{_  prev
 (dash-leader
   "-" '(dirvish :wk "dirvish here")
   "p" '(project-switch-project :wk "projects")
-  "f" '(project-find-file :wk "project files")
+  "f" '(my-persp-project-find-file :wk "project files")
   "l" '(my-persp-switch :wk "layouts"))
 
 ;;;; ; -- code intelligence (right index, home row, LSP navigation)

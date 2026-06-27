@@ -69,11 +69,14 @@
       (kill-buffer buf))))
 
 (defun persp-switch-set-project-root ()
-  (when-let* ((buf (cl-find-if (lambda (b)
-                                 (when-let ((f (buffer-file-name b)))
-                                   (not (string-prefix-p org-roam-directory
-                                                         (expand-file-name f)))))
-                               (persp-current-buffers)))
+  (when-let* ((buf (cl-find-if
+                    (lambda (b)
+                      (when-let ((f (buffer-file-name b)))
+                        (not (string-prefix-p org-roam-directory
+                                              (expand-file-name f)))))
+                    (cl-remove-if-not
+                     (lambda (b) (memq b (persp-current-buffers)))
+                     (buffer-list))))
               (file (buffer-file-name buf))
               (pr (project-current nil (file-name-directory file)))
               (root (project-root pr)))

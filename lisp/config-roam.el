@@ -1,123 +1,91 @@
 ;;; config-roam.el --- Org-roam knowledge management -*- lexical-binding: t; -*-
 ;;
-;; Architecture: project-aware capture via perspective stamps.
+;; Architecture: perspective-aware capture + navigate.
 ;;
 ;; ── Problem ──────────────────────────────────────────────────────
-;; Roam notes live at ~/Sync/roam/projects/<name>/.  Opening a note
-;; there sets default-directory to the roam path, which breaks
-;; project-find-file and project-aware commands.  We need roam notes
-;; to "belong" to the project they describe, not to the roam vault.
+;; Roam notes live at ~/Sync/roam/perspectives/<name>/.  default-directory
+;; points there, so project-find-file can't find the code project.
 ;;
-;; ── Mechanism: per-perspective last-project-root ─────────────────
-;; Every perspective carries a 'last-project-root in its local-variables
-;; alist (the perspective struct's built-in key-value store):
+;; ── Solution ─────────────────────────────────────────────────────
+;; Stamp the project root in a plain hash table keyed by perspective
+;; name.  my-persp-project-find-file (bound to ,f and SPC p f) reads
+;; the stamp and sets default-directory before delegating to
+;; project-find-file.  No advice, no struct manipulation, no recursion.
 ;;
-;;   my-stamp-project-root (find-file-hook)
-;;     Stamps the value when any non-roam code file is opened
-;;     in the perspective.  Roam files are gated by path prefix so
-;;     the roam vault itself is never stamped (no recursive slug).
+;; ── Capture routing ──────────────────────────────────────────────
+;; my-roam-project-subdir resolves to "perspectives/<persp-name>/" by
+;; reading the current perspective name directly.  No project root
+;; extraction, no leaf-name collision.
 ;;
-;;   persp-switch-set-project-root (persp-switch-hook, persp-created-hook)
-;;     Defined in config-tools.el.  Scans perspective buffers for a
-;;     project root, stamps the value, and sets default-directory.
-;;     Extended with the same roam-path guard.
-;;
-;; These two hooks together mean a perspective always has a project
-;; by the time you'd want to capture or navigate.
-;;
-;; ── Capture ──────────────────────────────────────────────────────
-;; my-roam-project-subdir is called via %(…) in the capture template
-;; :target path.  It reads the perspective's last-project-root,
-;; extracts the leaf directory name as a "slug", and returns
-;; "projects/<slug>/".  The directory is created if it doesn't exist.
-;;
-;; Fallback: when no project is stamped (fresh empty perspective,
-;; dashboard, scratch), returns "" which means org-roam-directory root.
-;;
-;; ── Navigation from roam notes ───────────────────────────────────
-;; my-roam-set-project-dir (find-file-hook) detects when a visited
-;; file lives under org-roam-directory.  If the perspective has a
-;; stamped project root, it redirects default-directory there.
-;; This makes ,f / project-find-file show the project's code files
-;; even when the current buffer is a roam note.
-;;
-;; ── Edge cases ───────────────────────────────────────────────────
-;;
-;; Roam note opened before any code file:
-;;   No stamp yet.  default-directory stays at the roam path.
-;;   Fixes itself when a code file is opened in the same perspective.
-;;
-;; Roam note from a different project's slug:
-;;   Opens normally.  Perspective's project does not switch.
-;;   Next capture goes to the stamped project, not the note's slug.
-;;
-;; Project directory renamed:
-;;   New slug produces a new "projects/<new-name>/" subdirectory.
-;;   Old notes stay in the old slug's directory.  Move them manually.
-;;   No stale-mapping file to corrupt.
-;;
-;; Roam vault becomes a git repo:
-;;   Path-prefix guard in my-stamp-project-root prevents it from
-;;   being stamped as a project.  No recursive "projects/roam/"
-;;   subdirectory is created.
-;;
-;; ── Load order ───────────────────────────────────────────────────
-;; config-roam.el loads before config-keybinds.el so that org-roam's
-;; :commands autoloads exist when general.el binds SPC n.  The
-;; find-file-hook additions are wrapped in with-eval-after-load so
-;; they only register after perspective has loaded (config-tools.el).
+;; ── Project root stamping ────────────────────────────────────────
+;; my-stamp-project-root (find-file-hook) stamps on any non-roam file
+;; open.  persp-switch-set-project-root (config-tools.el) stamps on
+;; perspective switch and creation.  Both gate on path prefix to
+;; prevent the roam vault from being stamped.
 
-;; ── Per-perspective value storage ────────────────────────────────
-;; The perspective struct carries a `local-variables' slot (an alist).
-;; These helpers read/write our key into it.
+;; ── Per-perspective project root storage ─────────────────────────
+;; A plain hash table keyed by perspective name.  Avoids the setf /
+;; nconc / native-comp minefield with the perspective struct's
+;; local-variables alist.  Lost on daemon restart (same as the struct
+;; approach — we don't persist this in state files).
+
+(defvar my-persp-project-roots (make-hash-table :test 'equal))
 
 (defun my-persp-last-project-root ()
-  (alist-get 'last-project-root
-             (persp-local-variables
-              (gethash (persp-current-name) (perspectives-hash)))))
+  (gethash (persp-current-name) my-persp-project-roots))
 
 (defun my-persp-set-last-project-root (root)
-  (let* ((n (persp-current-name))
-         (persp (gethash n (perspectives-hash)))
-         (vars (persp-local-variables persp)))
-    (setf (persp-local-variables persp)
-          (cons (cons 'last-project-root root)
-                (cl-remove 'last-project-root vars :key #'car)))))
+  (puthash (persp-current-name) root my-persp-project-roots))
 
 (defun my-roam-project-subdir ()
-  "Return roam subdirectory for current project, creating it if needed.
-Uses perspective's last-project-root parameter if available.
-Returns \"projects/<name>/\" or empty string for root directory."
-  (let ((root (or (my-persp-last-project-root)
-                  (when-let ((pr (project-current)))
-                    (project-root pr)))))
-    (if root
-        (let* ((name (downcase (file-name-nondirectory
-                                (directory-file-name (expand-file-name root)))))
-               (subdir (concat "projects/" name "/"))
-               (full (expand-file-name subdir org-roam-directory)))
-          (unless (file-directory-p full)
-            (make-directory full t))
-          subdir)
-      "")))
-
-(defun my-roam-set-project-dir ()
-  "Set default-directory from perspective parameter when visiting a roam file."
-  (unless (bound-and-true-p my-persp-saving)
-    (when (and (buffer-file-name)
-               (string-prefix-p (expand-file-name org-roam-directory)
-                                (expand-file-name (buffer-file-name)))
-               (my-persp-last-project-root))
-      (setq default-directory (my-persp-last-project-root)))))
+  "Return roam subdirectory for current perspective, creating it if needed.
+Uses perspective name as the slug — no collision risk because names are
+user-controlled.  Returns \"perspectives/<name>/\" or empty string for
+root directory (when no perspective is active, e.g. scratch buffer)."
+  (if-let ((name (persp-current-name)))
+      (let* ((slug (downcase name))
+             (subdir (concat "perspectives/" slug "/"))
+             (full (expand-file-name subdir org-roam-directory)))
+        (unless (file-directory-p full)
+          (make-directory full t))
+        subdir)
+    ""))
 
 (defun my-stamp-project-root ()
-  "Stamp last-project-root on the perspective from any non-roam code file."
+  "Stamp last-project-root on the perspective when a non-roam file opens."
   (unless (bound-and-true-p my-persp-saving)
     (when-let* ((f (buffer-file-name))
                 ((not (string-prefix-p org-roam-directory (expand-file-name f))))
                 (pr (project-current nil (file-name-directory f)))
                 (root (project-root pr)))
       (my-persp-set-last-project-root root))))
+
+(defun my-persp-project-find-file ()
+  "project-find-file with perspective-aware fallback.
+Checks the current buffer's project first (unless it's a roam file),
+then the stamped hash table, then scans buffers in MRU order."
+  (interactive)
+  (let* ((f (buffer-file-name))
+         (current-root (when (and f (not (string-prefix-p org-roam-directory
+                                                          (expand-file-name f))))
+                         (when-let ((pr (project-current nil (file-name-directory f))))
+                           (project-root pr))))
+         (root (or current-root
+                   (my-persp-last-project-root)
+                   (cl-loop for b in (buffer-list)
+                            when (and (memq b (persp-current-buffers))
+                                      (buffer-file-name b)
+                                      (not (string-prefix-p
+                                            org-roam-directory
+                                            (expand-file-name (buffer-file-name b)))))
+                            for pr = (project-current nil
+                                       (file-name-directory (buffer-file-name b)))
+                            when pr
+                            return (project-root pr))))
+         (default-directory (or root default-directory)))
+    (when root
+      (my-persp-set-last-project-root root))
+    (call-interactively #'project-find-file)))
 
 (use-package org-roam
   :commands (org-roam-node-find
@@ -133,7 +101,7 @@ Returns \"projects/<name>/\" or empty string for root directory."
   (setq org-roam-capture-templates
         '(("d" "default" plain "%?"
            :target (file+head
-                    "%(my-roam-project-subdir)%<%Y%m%d%H%M%S>-${slug}.org"
+                    "%(my-roam-project-subdir)${slug}.org"
                     "#+title: ${title}\n")
            :unnarrowed t)))
   :config
@@ -148,8 +116,7 @@ Returns \"projects/<name>/\" or empty string for root directory."
   (evil-org-set-key-theme '(textobjects insert navigation additional shift todo heading)))
 
 (with-eval-after-load 'perspective
-  (add-hook 'find-file-hook #'my-stamp-project-root)
-  (add-hook 'find-file-hook #'my-roam-set-project-dir))
+  (add-hook 'find-file-hook #'my-stamp-project-root))
 
 (provide 'config-roam)
 ;;; config-roam.el ends here

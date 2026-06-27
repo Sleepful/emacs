@@ -106,7 +106,10 @@
         `(consult-source-project-buffer
           ,(plist-put (copy-tree consult-source-project-recent-file)
                       :state #'consult--bat-file-state)
-          consult-source-project-root)))
+          consult-source-project-root))
+
+  (add-to-list 'consult-buffer-filter "\\`\\*scratch\\*\\( (.*)\\)?\\'")
+  (add-to-list 'consult-buffer-filter "\\`\\*Messages\\*\\'"))
 
 (defun consult-ripgrep-in-dir ()
   (interactive)

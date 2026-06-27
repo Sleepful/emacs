@@ -6,3 +6,4 @@ var/
 *.elc
 org-roam.db
 .org-id-locations
+bookmarks
