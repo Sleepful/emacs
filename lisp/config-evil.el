@@ -76,10 +76,18 @@
           (switch-to-buffer prev))))))
 
 (with-eval-after-load 'evil
-  (evil-global-set-key 'normal (kbd "]b") #'my/persp-next-buffer)
-  (evil-global-set-key 'normal (kbd "[b") #'my/persp-prev-buffer)
   (evil-global-set-key 'motion (kbd "]b") #'my/persp-next-buffer)
-  (evil-global-set-key 'motion (kbd "[b") #'my/persp-prev-buffer))
+  (evil-global-set-key 'motion (kbd "[b") #'my/persp-prev-buffer)
+  ;; evil-collection-unimpaired binds ]b/[b in an auxiliary normal-state
+  ;; keymap that outranks evil-normal-state-map.  Remove them there.
+  (when (boundp 'evil-collection-unimpaired-mode-map)
+    (let* ((aux (assq 'normal-state evil-collection-unimpaired-mode-map))
+           (bracket-close (assq 93 (cdr aux)))
+           (bracket-open (assq 91 (cdr aux)))
+           (km-close (cdr bracket-close))
+           (km-open (cdr bracket-open)))
+      (define-key km-close (kbd "b") 'my/persp-next-buffer)
+      (define-key km-open (kbd "b") 'my/persp-prev-buffer))))
 
 (with-eval-after-load 'evil
   ;; Escape to normal in minibuffers
