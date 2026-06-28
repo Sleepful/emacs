@@ -19,6 +19,9 @@
                     :weight 'light)
 (setq text-scale-mode-step 1.05)
 
+;; Revert buffer without confirmation (like :e! in vim)
+(setq revert-without-query '(".*"))
+
 ;; Suppress native-comp warnings for noisy third-party packages
 (with-eval-after-load 'comp
   (add-to-list 'native-comp-jit-compilation-deny-list "org-roam-")

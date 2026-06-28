@@ -1,18 +1,19 @@
 ;;; config-keybinds.el --- Leader keys and keybindings -*- lexical-binding: t; -*-
-
+;;
 ;; Leader key priority (by ergonomic value):
-;;   ,   Premium.  Right index, home row adjacent.  -> search (unstructured)
-;;   -   Premium.  Right hand, top row.             -> navigation (structured)
-;;   ;   Good.     Right index, home row.           -> TBD
+;;   ,   Premium.  Right index, home row adjacent.  -> query (large scope)
+;;   ;   Good.     Right index, home row.           -> structural (symbols, refs)
+;;   '   Decent.   Right pinky, top row.            -> files (I/O + dir browser)
+;;   -   Vacant.   Right hand, top row.             -> (unused)
 ;;   `   Good.     Left pinky, top row.             -> TBD
-;;   '   Decent.   Right pinky, top row.            -> reserved
 ;;   \   Okay.     Right pinky, bottom row.         -> reserved
 ;;   SPC Categorical 2+ layer menu. Can nest deeper as needed
 ;;       (e.g. SPC g d f -> git diff file).
 ;;
-;; Design principle for speed dials:
-;;   - (navigation) starts from structured containers: file trees, projects, perspectives
-;;   , (search) starts from unstructured queries: text patterns, buffer names, error lists
+;; Design principle: leaders are namespaced by scope, not by verb.
+;;   ,   Query (project / perspective / frame) — start from a pattern.
+;;   ;   Structural (symbols, references, file outline) — start from a point.
+;;   '   Files (buffer I/O, directory browser) — act on the current file.
 
 (use-package general
   :demand t
@@ -108,13 +109,12 @@ _l_ → right   _L_ → right                                _{_  prev
 
   "f"   '(:ignore t :wk "files")
   "f f" '(find-file :wk "files")
-  "f s" '(save-buffer :wk "save")
+  "f s" '(save-buffer :wk "write")
   "f r" '(recentf-open-files :wk "recent")
 
   "s"   '(:ignore t :wk "search")
   "s s" '(consult-line :wk "lines")
   "s r" '(consult-ripgrep :wk "ripgrep")
-  "s f" '(my-persp-project-find-file :wk "find file")
   "s F" '(consult-fd-in-dir :wk "fd by dir")
   "s d" '(consult-ripgrep-in-dir :wk "ripgrep by dir")
   "s i" '(consult-imenu :wk "file symbols")
@@ -148,6 +148,10 @@ _l_ → right   _L_ → right                                _{_  prev
   "t t" '(consult-theme :wk "all themes")
   "t f" '(load-favorite-theme :wk "favorite themes")
 
+  "c"   '(:ignore t :wk "code")
+  "c R" '(eglot-rename :wk "rename")
+  "c a" '(eglot-code-actions :wk "actions")
+
   "e"   '(:ignore t :wk "errors")
   "e e" '(flymake-show-project-diagnostics :wk "project diagnostics")
   "e b" '(flymake-show-buffer-diagnostics :wk "buffer diagnostics")
@@ -164,49 +168,45 @@ _l_ → right   _L_ → right                                _{_  prev
   "n b" '(org-roam-buffer-toggle :wk "backlinks")
   "n g" '(org-roam-graph :wk "graph"))
 
-;;;; , -- search (premium, right index, home row adjacent)
-;; Starts from unstructured queries: text patterns, buffer names, error lists.
+;;;; , -- query (premium, right index, home row adjacent)
+;; Large scope: project, perspective, frame.
 (comma-leader
   "," '(consult-buffer :wk "buffers")
   "B" '(persp-switch-to-buffer :wk "all buffers")
   "f" '(my-persp-project-find-file :wk "find file")
-  "s" '(consult-line :wk "lines")
-  "r" '(consult-ripgrep :wk "ripgrep")
-  "d" '(dirvish-side-toggle :wk "sidebar dirvish")
+  "g" '(consult-ripgrep :wk "grep")
   "l" '(my-persp-switch :wk "layouts")
   "e" '(flymake-show-project-diagnostics :wk "errors"))
 
-;;;; - -- navigation (premium, right hand, top row)
-;; Starts from structured containers: file trees, projects, perspectives.
-(dash-leader
-  "-" '(dirvish :wk "dirvish here")
-  "p" '(project-switch-project :wk "projects")
-  "f" '(my-persp-project-find-file :wk "project files")
-  "l" '(my-persp-switch :wk "layouts"))
+;;;; - -- (vacant, right hand, top row)
+;; (dash-leader)
 
-;;;; ; -- code intelligence (right index, home row, LSP navigation)
-;; Symbol traversal, not unstructured search. Named "code" not "LSP"
-;; to avoid binding to an implementation detail.
+;;;; ; -- structural (right index, home row)
+;; Symbol and reference traversal, file outline.
 (semi-leader
   "d" '(xref-find-definitions :wk "definition")
   "D" '(eglot-find-declaration :wk "declaration")
   "r" '(xref-find-references :wk "references")
   "i" '(eglot-find-implementation :wk "implementation")
   "t" '(eglot-find-typeDefinition :wk "type def")
-  "R" '(eglot-rename :wk "rename")
-  "a" '(eglot-code-actions :wk "actions")
+  "s" '(consult-imenu :wk "file symbols")
+  "g" '(consult-line :wk "grep file")
+  "p" '(my/structural-parents :wk "parent blocks")
+  "P" '(my/structural-parent :wk "parent jump")
   "b" '(xref-go-back :wk "back")
   "f" '(xref-go-forward :wk "forward"))
 
 ;;;; ` -- (good, left pinky, top row, TBD)
 ;; (backtick-leader)
 
-;;;; ' -- (file I/O: write, revert, duplicate, copy path)
+;;;; ' -- files (file I/O + directory browser)
 (quote-leader
   "w" '(save-buffer :wk "write")
   "r" '(revert-buffer :wk "revert")
-  "d" '(write-file :wk "duplicate")
-  "y" '(my-copy-file-name :wk "yank path"))
+  "f" '(write-file :wk "fork")
+  "y" '(my-copy-file-name :wk "yank path")
+  "-" '(dirvish :wk "dirvish")
+  "d" '(dirvish-side-toggle :wk "dirvish side"))
 
 ;;;; \ -- (okay, right pinky, bottom row, reserved)
 ;; (backslash-leader)

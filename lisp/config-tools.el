@@ -170,8 +170,14 @@ advice fires before persp-switch changes context)."
               (window-state-put windows (frame-root-window) 'safe)))
           ;; Restore point
           (ignore-errors
-            (goto-char point-pos))))
-        t)))
+            (goto-char point-pos))
+          ;; Start eglot now that suppression has lifted
+          (let ((eglot-server-programs (default-value 'eglot-server-programs)))
+            (dolist (b buffers)
+              (when-let ((buf (get-file-buffer b)))
+                (with-current-buffer buf
+                  (eglot-ensure)))))))
+    t)))
 
   (defun my-persp-save-all ()
     "Save all live perspectives to their per-perspective files."

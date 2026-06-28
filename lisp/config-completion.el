@@ -7,7 +7,9 @@
 ;; Vertical completion UI for the minibuffer
 (use-package vertico
   :demand t
-  :init (vertico-mode)
+  :init
+  (setq vertico-sort-function nil)
+  (vertico-mode)
   :bind (:map vertico-map
          ("<next>" . vertico-scroll-up)
          ("<prior>" . vertico-scroll-down)))

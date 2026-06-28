@@ -113,7 +113,10 @@ then the stamped hash table, then scans buffers in MRU order."
   :init
   (add-hook 'org-mode-hook 'evil-org-mode)
   :config
-  (evil-org-set-key-theme '(textobjects insert navigation additional shift todo heading)))
+  (evil-org-set-key-theme '(textobjects insert navigation additional shift todo heading))
+  (evil-define-key '(normal visual motion) org-mode-map
+    "]]" 'org-next-visible-heading
+    "[[" 'org-previous-visible-heading))
 
 (with-eval-after-load 'perspective
   (add-hook 'find-file-hook #'my-stamp-project-root))
