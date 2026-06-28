@@ -12,8 +12,10 @@
   :config
   (evil-set-initial-state 'messages-buffer-mode 'normal)
   (evil-mode 1)
-  (with-current-buffer "*Messages*"
-    (evil-normal-state 1)))
+  (when (get-buffer "*Messages*")
+    (with-current-buffer "*Messages*"
+      (evil-normal-state 1)))
+  (add-hook 'messages-buffer-mode-hook #'evil-normal-state))
 
 ;; Evil-collection for magit only (j/k line movement + curated keybinds)
 ;; Reference: https://github.com/emacs-evil/evil-collection/tree/master/modes/magit
@@ -41,6 +43,43 @@
 (global-set-key (kbd "s-<backspace>") (lambda () (interactive) (kill-line 0)))
 (global-set-key (kbd "C-<tab>") 'tab-next)
 (global-set-key (kbd "C-<S-iso-lefttab>") 'tab-previous)
+
+(defun my--persp-buffers ()
+  "Return file-backed buffers in the current perspective."
+  (cl-remove-if-not
+   (lambda (buf) (and (buffer-live-p buf) (buffer-file-name buf)))
+   (persp-current-buffers)))
+
+(defun my/persp-next-buffer ()
+  "Switch to the next buffer in the current perspective, skipping scratch."
+  (interactive)
+  (let ((bufs (my--persp-buffers))
+        (cur (current-buffer)))
+    (when (> (length bufs) 1)
+      (let* ((tail (memq cur bufs))
+             (rest (cdr tail))
+             (next (car (or rest bufs))))
+        (when (and next (not (eq next cur)))
+          (switch-to-buffer next))))))
+
+(defun my/persp-prev-buffer ()
+  "Switch to the previous buffer in the current perspective, skipping scratch."
+  (interactive)
+  (let* ((bufs (my--persp-buffers))
+         (rev (reverse bufs))
+         (cur (current-buffer)))
+    (when (> (length rev) 1)
+      (let* ((tail (memq cur rev))
+             (rest (cdr tail))
+             (prev (car (or rest rev))))
+        (when (and prev (not (eq prev cur)))
+          (switch-to-buffer prev))))))
+
+(with-eval-after-load 'evil
+  (evil-global-set-key 'normal (kbd "]b") #'my/persp-next-buffer)
+  (evil-global-set-key 'normal (kbd "[b") #'my/persp-prev-buffer)
+  (evil-global-set-key 'motion (kbd "]b") #'my/persp-next-buffer)
+  (evil-global-set-key 'motion (kbd "[b") #'my/persp-prev-buffer))
 
 (with-eval-after-load 'evil
   ;; Escape to normal in minibuffers

@@ -24,10 +24,13 @@
              (treesit-search-subtree node "variable_declarator" nil nil 1)
              "name"))
            (_ (treesit-node-child-by-field-name node "name")))))
-    (if name-node (treesit-node-text name-node t) "Anonymous")))
+    (if name-node
+        (treesit-node-text name-node t)
+      (my/treesit-node-anon-text node))))
 
 (defun my/ts-valid-imenu-entry (node)
-  "Return non-nil if NODE should appear in imenu."
+  "Return non-nil if NODE should appear in imenu.
+Only top-level declarations (accepts export-wrapped)."
   (pcase (treesit-node-type node)
     ((or "lexical_declaration" "variable_declaration")
      (let ((p (treesit-node-parent node)))
@@ -47,6 +50,13 @@
                         'face 'my/ts-imenu-type-face)
             name)))
 
+(defun my/ts-node-depth (node)
+  "Return the nesting depth of NODE (root = 0)."
+  (let ((depth 0))
+    (while (setq node (treesit-node-parent node))
+      (cl-incf depth))
+    depth))
+
 (defun my/ts-imenu-extend ()
   "Replace imenu settings with a flat file-order index.
 All declaration types in a single merged category with type prefixes.
@@ -61,10 +71,193 @@ Forces tree-sitter imenu even when eglot is active (LSP symbols are too granular
                               "interface_declaration" "type_alias_declaration"
                               "enum_declaration" "variable_declaration")
                       eol)
-                 my/ts-valid-imenu-entry
+                  my/ts-valid-imenu-entry
                  my/ts-imenu-name-with-type))))
 
 (add-hook 'typescript-ts-base-mode-hook #'my/ts-imenu-extend)
+
+;; ── Interactive symbol explorer ──────────────────────────────────
+;; ; s: drill-down symbol explorer.  RET jumps, C-RET drills into a
+;; node's children, ESC/empty pops scope up.  Scope stack stored in
+;; my/structural-scope (buffer-local).
+
+(defvar-local my/structural-scope nil
+  "Node for the current drill-down scope.  nil = file level.")
+
+(defvar-local my/structural-scope-stack nil
+  "Stack of previous scopes for drill-down pop.  nil = at file level.")
+
+(defvar my/structural-focus-action nil)
+
+(defvar my/structural-passthrough-types
+  '("export_statement" "statement_block" "class_body"
+    "else_clause" "finally_clause" "switch_case" "case_clause")
+  "Tree-sitter container node types whose children replace the container.
+Avoids empty drill-down levels when entering functions, classes, etc.")
+
+(defface my/structural-drillable-face
+  '((t :foreground "#56B6C2" :weight bold))
+  "Face for the drill-down indicator on candidates with children.")
+
+(defun my/structural-jump (pos)
+  "Jump to POS, push mark, and center the cursor."
+  (push-mark)
+  (goto-char pos)
+  (when (fboundp 'evil-scroll-line-to-center)
+    (evil-scroll-line-to-center nil)))
+
+(defun my/structural-focus ()
+  "Symbol explorer with drill-down.
+RET jumps to the selected symbol.  C-RET drills into its children
+on the selected node.  ESC or empty input pops up one scope level
+(or aborts at file level).  Falls back to consult-imenu for
+non-tree-sitter buffers."
+  (interactive)
+  (if (treesit-language-at (point))
+      (let ((scope my/structural-scope)
+            (stack my/structural-scope-stack))
+        (catch 'my/structural-focus-done
+          (while t
+            (let* ((candidates (my/structural-focus--candidates scope))
+                   (items (mapcar
+                           (lambda (c)
+                             (let ((m (make-marker))
+                                   (type (my/treesit-type-short (caddr c)))
+                                   (drillable (my/structural-focus--has-children (cadddr c))))
+                               (set-marker m (cadr c))
+                               (cons (concat (propertize (format "%-6s " (concat "(" type ")"))
+                                                         'face 'my/ts-imenu-type-face)
+                                             (car c)
+                                             (when drillable
+                                               (propertize " ▸"
+                                                           'face 'my/structural-drillable-face)))
+                                     m)))
+                           candidates))
+                   (items (if scope
+                              (cons (cons ".. (up)" 'up) items)
+                            items))
+                   (result
+                    (condition-case nil
+                        (minibuffer-with-setup-hook
+                            (lambda ()
+                              (define-key vertico-map (kbd "C-<return>")
+                                (lambda ()
+                                  (interactive)
+                                  (setq my/structural-focus-action 'drill)
+                                  (if (fboundp 'vertico-exit)
+                                      (vertico-exit)
+                                    (exit-minibuffer)))))
+                          (consult--read
+                           items
+                           :prompt (format "Symbols [%s]: "
+                                           (if scope "scope" "file"))
+                           :require-match t
+                           :category 'imenu
+                           :lookup #'consult--lookup-cons
+                           :sort nil
+                           :state (let ((preview (consult--jump-preview)))
+                                    (lambda (action cand)
+                                      (funcall preview action
+                                               (when-let ((m (cdr cand)))
+                                                 (and (markerp m) m)))))))
+                      (quit nil)))
+                   (pos (cond
+                      ((markerp result) (marker-position result))
+                      ((and (consp result) (markerp (cdr result)))
+                       (marker-position (cdr result)))
+                      ((number-or-marker-p result) result)
+                      (t nil)))
+                   (action my/structural-focus-action))
+              ;; Clean up markers
+              (mapc (lambda (item) (when (markerp (cdr item))
+                                     (set-marker (cdr item) nil)))
+                    items)
+              (setq my/structural-focus-action nil)
+              (cond
+               ((eq action 'drill)
+                (if (number-or-marker-p pos)
+                    (when-let ((node (my/structural-focus--node-at pos scope)))
+                      (if (my/structural-focus--has-children node)
+                          (progn
+                            (push scope stack)
+                            (setq scope node)
+                            (setq my/structural-scope node)
+                            (setq my/structural-scope-stack stack))
+                        ;; Leaf node: jump instead of drilling
+                        (my/structural-jump pos)
+                        (setq my/structural-scope nil)
+                        (setq my/structural-scope-stack nil)
+                        (throw 'my/structural-focus-done nil)))
+                  ;; No pos: treat as pop-up (drill on ".. (up)" or empty)
+                  (if stack
+                      (progn
+                        (setq scope (pop stack))
+                        (setq my/structural-scope scope)
+                        (setq my/structural-scope-stack stack))
+                    (setq my/structural-scope nil)
+                    (setq my/structural-scope-stack nil)
+                    (throw 'my/structural-focus-done nil))))
+               ((eq result 'up)
+                (setq scope (pop stack))
+                (setq my/structural-scope scope)
+                (setq my/structural-scope-stack stack))
+               ((number-or-marker-p pos)
+                (my/structural-jump pos)
+                (setq my/structural-scope nil)
+                (setq my/structural-scope-stack nil)
+                (throw 'my/structural-focus-done nil))
+               (t
+                (if stack
+                    (progn
+                      (setq scope (pop stack))
+                      (setq my/structural-scope scope)
+                      (setq my/structural-scope-stack stack))
+                  (setq my/structural-scope nil)
+                  (setq my/structural-scope-stack nil)
+                  (throw 'my/structural-focus-done nil))))))))
+    (call-interactively #'consult-imenu)))
+(defun my/structural-focus--children (scope)
+  "Return the effective children of SCOPE (nil = file root).
+Unwraps passthrough containers (statement_block, export_statement, etc.)
+so drilling yields the declarations inside, not empty container levels."
+  (let* ((raw (if scope
+                  (treesit-node-children scope)
+                (treesit-node-children (treesit-buffer-root-node))))
+         (result nil))
+    (dolist (n raw)
+      (if (member (treesit-node-type n) my/structural-passthrough-types)
+          (dolist (c (treesit-node-children n))
+            (push c result))
+        (push n result)))
+    (nreverse result)))
+
+(defun my/structural-focus--has-children (node)
+  "Return non-nil if NODE has at least one allowlisted drill-down candidate."
+  (let ((children (my/structural-focus--children node))
+        (allowlist (cdr (assoc major-mode my/structural-parent-types))))
+    (cl-some (lambda (c) (member (treesit-node-type c) allowlist)) children)))
+
+(defun my/structural-focus--candidates (scope)
+  "Return candidates for SCOPE (nil = file root) as (DISPLAY POS TYPE NODE)."
+  (let ((nodes (my/structural-focus--children scope))
+        (allowlist (cdr (assoc major-mode my/structural-parent-types)))
+        (result nil))
+    (dolist (n nodes)
+      (when (member (treesit-node-type n) allowlist)
+        (push (list (my/ts-imenu-name n)
+                    (treesit-node-start n)
+                    (treesit-node-type n)
+                    n)
+              result)))
+    (sort result (lambda (a b) (< (cadr a) (cadr b))))))
+
+(defun my/structural-focus--node-at (pos scope)
+  "Return the tree-sitter node at POS within SCOPE."
+  (let ((nodes (my/structural-focus--children scope)))
+    (cl-find pos nodes
+             :test (lambda (pos node)
+                     (and (treesit-node-start node)
+                          (= pos (treesit-node-start node)))))))
 
 ;; ── Structural parent navigation ─────────────────────────────────
 ;; ; p: completing-read of enclosing blocks from point (innermost first)
@@ -77,11 +270,15 @@ Forces tree-sitter imenu even when eglot is active (LSP symbols are too granular
 (defvar my/structural-parent-types
   '((typescript-ts-mode "function_declaration" "method_definition"
                         "class_declaration" "interface_declaration"
+                        "type_alias_declaration" "enum_declaration"
+                        "lexical_declaration" "variable_declaration"
                         "if_statement" "for_statement" "for_in_statement"
                         "while_statement" "switch_statement" "try_statement"
                         "catch_clause" "arrow_function" "object")
     (tsx-ts-mode "function_declaration" "method_definition"
                  "class_declaration" "interface_declaration"
+                 "type_alias_declaration" "enum_declaration"
+                 "lexical_declaration" "variable_declaration"
                  "if_statement" "for_statement" "for_in_statement"
                  "while_statement" "switch_statement" "try_statement"
                  "catch_clause" "arrow_function" "object")
@@ -227,8 +424,7 @@ Skips intermediate `plain-list' containers."
                  :lookup #'consult--lookup-cons
                  :sort nil)))
           (when selection
-            (push-mark)
-            (goto-char selection))
+            (my/structural-jump selection))
           (mapc (lambda (m) (set-marker m nil)) (mapcar #'cdr items)))
       (user-error "No enclosing blocks"))))
 
@@ -245,8 +441,7 @@ Skips intermediate `plain-list' containers."
            (user-error "No structural context")))))
     (if candidates
         (let ((target (car (last candidates))))
-          (push-mark)
-          (goto-char (cadr target)))
+          (my/structural-jump (cadr target)))
       (user-error "No enclosing block"))))
 
 ;; Lua

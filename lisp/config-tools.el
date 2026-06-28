@@ -142,6 +142,7 @@ advice fires before persp-switch changes context)."
 
   (defun my-persp-load (name)
     "Load perspective NAME from its state file into the current frame."
+    (require 'eglot)
     (let ((file (my-persp-file name)))
       (when (file-exists-p file)
         (let* ((data (with-temp-buffer

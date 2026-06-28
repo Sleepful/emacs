@@ -57,6 +57,17 @@
     :keymaps 'override
     :prefix "\\"))
 
+(defun my-toggle-messages ()
+  "Toggle the *Messages* buffer.
+When not viewing *Messages*, switch to it and force normal state.
+When viewing it, bury it to the bottom of the buffer list."
+  (interactive)
+  (if (string= (buffer-name) "*Messages*")
+      (bury-buffer)
+    (switch-to-buffer "*Messages*")
+    (when (fboundp 'evil-normal-state)
+      (evil-normal-state 1))))
+
 (use-package hydra
   :demand t
   :config
@@ -103,9 +114,10 @@ _l_ → right   _L_ → right                                _{_  prev
 (spc-leader
   "b"   '(:ignore t :wk "buffers")
   "b b" '(consult-buffer :wk "buffers")
-  "b B" '(persp-switch-to-buffer :wk "all buffers")
+  "b a" '(persp-switch-to-buffer :wk "all buffers")
   "b q" '(persp-quit-buffer :wk "quit")
   "b k" '(kill-buffer :wk "kill")
+  "b m" '(my-toggle-messages :wk "messages")
 
   "f"   '(:ignore t :wk "files")
   "f f" '(find-file :wk "files")
@@ -172,7 +184,6 @@ _l_ → right   _L_ → right                                _{_  prev
 ;; Large scope: project, perspective, frame.
 (comma-leader
   "," '(consult-buffer :wk "buffers")
-  "B" '(persp-switch-to-buffer :wk "all buffers")
   "f" '(my-persp-project-find-file :wk "find file")
   "g" '(consult-ripgrep :wk "grep")
   "l" '(my-persp-switch :wk "layouts")
@@ -189,7 +200,7 @@ _l_ → right   _L_ → right                                _{_  prev
   "r" '(xref-find-references :wk "references")
   "i" '(eglot-find-implementation :wk "implementation")
   "t" '(eglot-find-typeDefinition :wk "type def")
-  "s" '(consult-imenu :wk "file symbols")
+  "s" '(my/structural-focus :wk "symbols")
   "g" '(consult-line :wk "grep file")
   "p" '(my/structural-parents :wk "parent blocks")
   "P" '(my/structural-parent :wk "parent jump")
