@@ -74,11 +74,12 @@ When viewing it, bury it to the bottom of the buffer list."
   (defhydra hydra-window (:hint nil)
     "
     ^Move^        ^Swap^        ^Split^       ^Close^       ^Tabs^
-_h_ ← left    _H_ ← left    _v_  →        _q_  close     _c_  new
-_j_ ↓ down    _J_ ↓ down    _s_  ↓        _o_  only      _C_  kill
-_k_ ↑ up      _K_ ↑ up      _=_  balance   _w_  other     _r_  rename
-_l_ → right   _L_ → right                                _{_  prev
-← ↑ ↓ →       S-← S-↑ S-↓ S-→                              _}_  next
+_h_ ← left    _H_ ← left    _v_  →        _q_ quit       _c_  new
+_j_ ↓ down    _J_ ↓ down    _s_  ↓        _Q_ close      _C_  kill
+_k_ ↑ up      _K_ ↑ up      _=_  balance   _o_  only      _r_  rename
+_l_ → right   _L_ → right   _w_  other    _}_  next
+← ↑ ↓ →       S-← S-↑ S-↓ S-→              _{_  prev
+                                     _ESC_ quit
 "
     ("h" windmove-left)
     ("j" windmove-down)
@@ -98,7 +99,9 @@ _l_ → right   _L_ → right                                _{_  prev
     ("L" windmove-swap-states-right)
     ("v" split-window-right)
     ("s" split-window-below)
-    ("q" delete-window)
+    ("q" nil :exit t)
+    ("ESC" nil :exit t)
+    ("Q" delete-window)
     ("o" delete-other-windows)
     ("=" balance-windows)
     ("w" other-window)
