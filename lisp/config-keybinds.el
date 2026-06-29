@@ -106,7 +106,36 @@ _l_ → right   _L_ → right                                _{_  prev
     ("C" tab-close)
     ("r" tab-rename)
     ("{" tab-previous)
-    ("}" tab-next)))
+    ("}" tab-next))
+
+  ;; Outline navigation.  Sticky menu so you can tap n/N repeatedly
+  ;; without re-pressing SPC.  Requires outline-minor-mode for headings,
+  ;; which `;s` lazy-enables on first invocation.  No-op gracefully
+  ;; outside outline-minor-mode.
+  (defhydra hydra-outline (:hint nil)
+    "
+^n_: next heading      ^a_: show all      _q_: exit
+^N_: prev heading      _s_: peek entry    _ESC_: exit
+                      _c_/_TAB_: cycle
+                      _h_: hide sublevels
+                      _H_: hide body
+"
+    ("n" outline-next-heading)
+    ("N" outline-previous-heading)
+    ("a" outline-show-all)
+    ("s" outline-show-entry)
+    ("h" outline-hide-sublevels)
+    ("H" outline-hide-body)
+    ("c" outline-cycle)
+    ("TAB" outline-cycle)
+    ("q" nil :exit t)
+    ("ESC" nil :exit t))
+  (defun hydra-outline--ensure-mode ()
+    "Lazy-enable outline-minor-mode if not already active.  Run before hydra."
+    (interactive)
+    (unless (bound-and-true-p outline-minor-mode)
+      (outline-minor-mode 1)))
+  (advice-add 'hydra-outline/body :before #'hydra-outline--ensure-mode))
 
 ;;;; SPC -- categorical menu
 ;; Layers can nest deeper than 2 when needed (e.g. SPC g d f -> git diff file).
@@ -178,7 +207,9 @@ _l_ → right   _L_ → right                                _{_  prev
   "n c" '(org-roam-capture :wk "capture")
   "n t" '(org-roam-tag-add :wk "tag")
   "n b" '(org-roam-buffer-toggle :wk "backlinks")
-  "n g" '(org-roam-graph :wk "graph"))
+  "n g" '(org-roam-graph :wk "graph")
+
+  "o"   '(hydra-outline/body :wk "outline"))
 
 ;;;; , -- query (premium, right index, home row adjacent)
 ;; Large scope: project, perspective, frame.

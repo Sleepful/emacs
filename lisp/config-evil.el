@@ -78,15 +78,16 @@
 (with-eval-after-load 'evil
   (evil-global-set-key 'motion (kbd "]b") #'my/persp-next-buffer)
   (evil-global-set-key 'motion (kbd "[b") #'my/persp-prev-buffer)
-  ;; Outline nav keybinds under ]/[ (org-mode style heading travel).
-  ;; lazy-enables by relying on outline-minor-mode being turned on
-  ;; by the first `;s` invocation.
-  (evil-global-set-key 'motion (kbd "]o") #'outline-next-heading)
-  (evil-global-set-key 'motion (kbd "[o") #'outline-previous-heading)
-  (evil-global-set-key 'motion (kbd "]O") #'outline-hide-sublevels)
-  (evil-global-set-key 'motion (kbd "[O") #'outline-cycle)
-  ;; evil-collection-unimpaired binds ]b/[b in an auxiliary normal-state
-  ;; keymap that outranks evil-normal-state-map.  Add outline nav there too.
+  ;; Heading nav under ]]/[[.  Overrides evil's evil-forward-section-begin
+  ;; / evil-backward-section-begin (sections duplicate paragraph motion
+  ;; and our outline enables finer heading jumps via treesit predicate).
+  ;; Lazy-enabled by outline-minor-mode being turned on by the first `;s`
+  ;; invocation; outside TS buffers these no-op gracefully.
+  (evil-global-set-key 'motion (kbd "]]") #'outline-next-heading)
+  (evil-global-set-key 'motion (kbd "[[") #'outline-previous-heading)
+  ;; evil-collection-unimpaired binds ]b/[b AND ]]/[[ in an auxiliary
+  ;; normal-state keymap that outranks evil-normal-state-map.  Override
+  ;; both the buffer-key case and the prefix-recurse case there.
   (when (boundp 'evil-collection-unimpaired-mode-map)
     (let* ((aux (assq 'normal-state evil-collection-unimpaired-mode-map))
            (bracket-close (assq 93 (cdr aux)))
@@ -95,10 +96,8 @@
            (km-open (cdr bracket-open)))
       (define-key km-close (kbd "b") 'my/persp-next-buffer)
       (define-key km-open (kbd "b") 'my/persp-prev-buffer)
-      (define-key km-close (kbd "o") 'outline-next-heading)
-      (define-key km-open (kbd "o") 'outline-previous-heading)
-      (define-key km-close (kbd "O") 'outline-hide-sublevels)
-      (define-key km-open (kbd "O") 'outline-cycle))))
+      (define-key km-close (kbd "]") 'outline-next-heading)
+      (define-key km-open (kbd "[") 'outline-previous-heading))))
 
 (with-eval-after-load 'evil
   ;; Escape to normal in minibuffers
