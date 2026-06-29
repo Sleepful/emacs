@@ -180,10 +180,18 @@ invisible heading without advancing).
 
 Frame-of-reference: one outer call = one outline heading step.  When
 the search lands on a heading with the body hidden, we forward-line
-past it and try the next one.  When we land on something that is
-not a heading line, we revert to the snapshot of the last visible
-heading we successfully landed on, so the cursor never gets stranded
-on an empty post-EOF line.  No loops in the recovery path."
+past it and try the next one.  Edge-of-buffer symmetric: pressing n
+past the last visible heading drops to plain `(point-max)' (no
+heading selected), and pressing p at first visible heading drops to
+plain `(point-min)'.  From a plain edge, the opposite direction
+walks back into the nearest visible heading.
+
+Inner-step quirk: `treesit-outline-search' treats the *current* node
+as `found' when stepping toward its own boundary.  When stepping
+backward from a heading line, the search may return the heading's
+own beginning -- same line, different column.  We treat this as no
+movement and back up one line so the next iteration sees a position
+strictly outside the heading's body.  No loops in the recovery path."
   (interactive "p")
   (let* ((arg (or arg 1))
          (step (if (< arg 0) -1 1))
@@ -191,6 +199,8 @@ on an empty post-EOF line.  No loops in the recovery path."
          (max-iter 10000))
     (dotimes (_ count)
       (let ((start-pos (point))
+            (start-line (line-number-at-pos))
+            (start-on-heading (outline-on-heading-p))
             (last-good-pos (point)))
         (let ((done nil))
           (let ((iter 0))
@@ -202,16 +212,32 @@ on an empty post-EOF line.  No loops in the recovery path."
                     (outline-previous-heading))
                 (error (setq done t)))
               (cond
+               ;; Point unchanged -- search exhausted.
                ((= (point) start-pos) (setq done t))
+               ;; Search landed back on the heading line we started on.
+               ;; Step one line in the direction of travel to escape
+               ;; the current heading's body region.
+               ((and (outline-on-heading-p)
+                     (= (line-number-at-pos) start-line))
+                (forward-line step))
+               ;; Heading text is currently invisible -- skip to next line.
                ((outline-invisible-p (line-beginning-position))
                 (forward-line step))
+               ;; Visible heading on a different line -- accept.
                ((outline-on-heading-p)
                 (setq last-good-pos (point))
                 (setq done t))
+               ;; Off-heading -- handle in the recovery below.
                (t (setq done t))))))
-        (when (and (not (outline-on-heading-p))
-                   (not (eq (point) start-pos)))
-          (goto-char start-pos)))
+        (cond
+         ;; Walked from a heading off the visible edge -- drop to plain
+         ;; BOB / EOB so the user can bounce back.
+         ((and start-on-heading (not (outline-on-heading-p)))
+          (goto-char (if (> step 0) (point-max) (point-min))))
+         ;; Started off-heading and ended off-heading -- restore to the
+         ;; last visible heading we successfully landed on.
+         ((and (not start-on-heading) (not (outline-on-heading-p)))
+          (goto-char last-good-pos))))
       (when (outline-on-heading-p) (back-to-indentation)))))
 (defun my/previous-visible-heading (arg)
   "Move to previous visible heading line.  ARG controls repeat."
@@ -559,11 +585,11 @@ Skips intermediate `plain-list' containers."
                           (lambda (action cand)
                             (funcall preview action
                                      (when-let ((m (cdr cand)))
-                                       (and (markerp m) m)))))
-                 :require-match t
-                 :category 'imenu
-                 :lookup #'consult--lookup-cons
-                 :sort nil)))
+                                        (and (markerp m) m)))))
+                  :require-match t
+                  :category 'imenu
+                  :lookup #'consult--lookup-cons
+                  :sort nil)))
           (when selection
             (my/structural-jump selection))
           (mapc (lambda (m) (set-marker m nil)) (mapcar #'cdr items)))
