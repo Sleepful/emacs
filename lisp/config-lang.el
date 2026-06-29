@@ -61,7 +61,8 @@ Only top-level declarations (accepts export-wrapped)."
   "Replace imenu settings with a flat file-order index.
 All declaration types in a single merged category with type prefixes.
 Fixes export-wrapped top-level detection and file-order display.
-Forces tree-sitter imenu even when eglot is active (LSP symbols are too granular)."
+Forces tree-sitter imenu even when eglot is active (LSP symbols are too granular).
+Also enables outline-minor-mode via treesit outline predicate."
   (setq-local imenu-sort-function nil)
   (setq-local imenu-create-index-function #'treesit-simple-imenu)
   (setq-local treesit-simple-imenu-settings
@@ -70,9 +71,16 @@ Forces tree-sitter imenu even when eglot is active (LSP symbols are too granular
                               "class_declaration" "method_definition"
                               "interface_declaration" "type_alias_declaration"
                               "enum_declaration" "variable_declaration")
-                      eol)
-                  my/ts-valid-imenu-entry
-                 my/ts-imenu-name-with-type))))
+                     eol)
+                 my/ts-valid-imenu-entry
+                 my/ts-imenu-name-with-type)))
+  ;; Enable outline navigation via tree-sitter.  treesit-major-mode-setup
+  ;; sets `treesit-outline-predicate' from the imenu settings defined above.
+  ;; We explicitly set the search/level so `outline-hide-body' works.
+  (when (fboundp 'treesit-outline-search)
+    (setq-local outline-search-function #'treesit-outline-search))
+  (when (fboundp 'treesit-outline-level)
+    (setq-local outline-level #'treesit-outline-level)))
 
 (add-hook 'typescript-ts-base-mode-hook #'my/ts-imenu-extend)
 
@@ -86,6 +94,12 @@ Forces tree-sitter imenu even when eglot is active (LSP symbols are too granular
 
 (defvar-local my/structural-scope-stack nil
   "Stack of previous scopes for drill-down pop.  nil = at file level.")
+
+(defvar-local my/structural--highlighted-node nil
+  "Currently highlighted candidate in ;s, used for preview folding.")
+
+(defvar-local my/structural--saved-point nil
+  "Point position at ;s entry, restored on abort.")
 
 (defvar my/structural-focus-action nil)
 
@@ -106,115 +120,193 @@ Avoids empty drill-down levels when entering functions, classes, etc.")
   (when (fboundp 'evil-scroll-line-to-center)
     (evil-scroll-line-to-center nil)))
 
+(defun my/structural--outline-ensure ()
+  "Enable outline-minor-mode buffer-locally.  Idempotent."
+  (unless outline-minor-mode
+    (outline-minor-mode 1)))
+
+(defun my/structural--breadcrumb ()
+  "Update header-line-format with the current scope stack path."
+  (condition-case nil
+      (let* ((all-nodes (delq nil (append (reverse my/structural-scope-stack)
+                                          (when my/structural-scope
+                                            (list my/structural-scope)))))
+             (paths (mapcar (lambda (n)
+                             (concat (propertize "["
+                                                 'face 'my/ts-imenu-type-face)
+                                     (propertize (my/treesit-type-short
+                                                  (treesit-node-type n))
+                                                 'face 'my/ts-imenu-type-face)
+                                     (propertize "] "
+                                                 'face 'my/ts-imenu-type-face)
+                                     (condition-case nil
+                                         (my/ts-imenu-name n)
+                                       (error "?"))))
+                           all-nodes)))
+        (setq header-line-format
+              (when paths
+                (concat (propertize " ;s > " 'face 'shadow)
+                        (mapconcat #'identity paths
+                                   (propertize " > " 'face 'shadow))))))
+    (error (setq header-line-format nil))))
+
+(defun my/structural--cleanup (&optional restore-point)
+  "Reset ;s session state.
+With RESTORE-POINT, restore the saved point (abort path).
+Always runs outline-show-all and clears the breadcrumb.
+outline-minor-mode is preserved (becomes persistent for travel)."
+  (when (fboundp 'outline-show-all)
+    (ignore-errors (outline-show-all)))
+  (setq header-line-format nil)
+  (setq my/structural--highlighted-node nil)
+  (when (and restore-point my/structural--saved-point)
+    (goto-char my/structural--saved-point))
+  (setq my/structural--saved-point nil))
+
+(defun my/structural--goto-node-start (node)
+  "Move point to NODE's first line."
+  (when node
+    (goto-char (treesit-node-start node))
+    (beginning-of-line)))
+
 (defun my/structural-focus ()
-  "Symbol explorer with drill-down.
-RET jumps to the selected symbol.  C-RET drills into its children
-on the selected node.  ESC or empty input pops up one scope level
-(or aborts at file level).  Falls back to consult-imenu for
-non-tree-sitter buffers."
+  "Symbol explorer with drill-down and outline preview.
+RET jumps.  C-RET drills into children.  Highlighted candidate reveals
+its body via outline-minor-mode fold peek.  Breadcrumb in header line.
+outline-minor-mode lazy-enabled and persisted for travel.
+Falls back to consult-imenu for non-tree-sitter buffers."
   (interactive)
   (if (treesit-language-at (point))
-      (let ((scope my/structural-scope)
-            (stack my/structural-scope-stack))
-        (catch 'my/structural-focus-done
-          (while t
-            (let* ((candidates (my/structural-focus--candidates scope))
-                   (items (mapcar
-                           (lambda (c)
-                             (let ((m (make-marker))
-                                   (type (my/treesit-type-short (caddr c)))
-                                   (drillable (my/structural-focus--has-children (cadddr c))))
-                               (set-marker m (cadr c))
-                               (cons (concat (propertize (format "%-6s " (concat "(" type ")"))
-                                                         'face 'my/ts-imenu-type-face)
-                                             (car c)
-                                             (when drillable
-                                               (propertize " ▸"
-                                                           'face 'my/structural-drillable-face)))
-                                     m)))
-                           candidates))
-                   (items (if scope
-                              (cons (cons ".. (up)" 'up) items)
-                            items))
-                   (result
-                    (condition-case nil
-                        (minibuffer-with-setup-hook
-                            (lambda ()
-                              (define-key vertico-map (kbd "C-<return>")
+      (let* ((scope my/structural-scope)
+             (stack my/structural-scope-stack)
+             (entry-depth (length my/structural-scope-stack))
+             (entry-scope my/structural-scope))
+        (unwind-protect
+            (catch 'my/structural-focus-done
+              (my/structural--outline-ensure)
+              (my/structural--breadcrumb)
+              (when (fboundp 'outline-hide-body)
+                (ignore-errors (outline-hide-body)))
+              (while t
+                (let* ((candidates (my/structural-focus--candidates scope))
+                       (items (mapcar
+                               (lambda (c)
+                                 (let ((m (make-marker))
+                                       (type (my/treesit-type-short (caddr c)))
+                                       (drillable (my/structural-focus--has-children (cadddr c))))
+                                   (set-marker m (cadr c))
+                                   (cons (concat (propertize (format "%-6s " (concat "(" type ")"))
+                                                             'face 'my/ts-imenu-type-face)
+                                                 (car c)
+                                                 (when drillable
+                                                   (propertize " ▸"
+                                                               'face 'my/structural-drillable-face)))
+                                         m)))
+                               candidates))
+                       (items (if scope
+                                  (cons (cons ".. (up)" 'up) items)
+                                items))
+                       (result
+                        (condition-case nil
+                            (minibuffer-with-setup-hook
                                 (lambda ()
-                                  (interactive)
-                                  (setq my/structural-focus-action 'drill)
-                                  (if (fboundp 'vertico-exit)
-                                      (vertico-exit)
-                                    (exit-minibuffer)))))
-                          (consult--read
-                           items
-                           :prompt (format "Symbols [%s]: "
-                                           (if scope "scope" "file"))
-                           :require-match t
-                           :category 'imenu
-                           :lookup #'consult--lookup-cons
-                           :sort nil
-                           :state (let ((preview (consult--jump-preview)))
-                                    (lambda (action cand)
-                                      (funcall preview action
-                                               (when-let ((m (cdr cand)))
-                                                 (and (markerp m) m)))))))
-                      (quit nil)))
-                   (pos (cond
-                      ((markerp result) (marker-position result))
-                      ((and (consp result) (markerp (cdr result)))
-                       (marker-position (cdr result)))
-                      ((number-or-marker-p result) result)
-                      (t nil)))
-                   (action my/structural-focus-action))
-              ;; Clean up markers
-              (mapc (lambda (item) (when (markerp (cdr item))
-                                     (set-marker (cdr item) nil)))
-                    items)
-              (setq my/structural-focus-action nil)
-              (cond
-               ((eq action 'drill)
-                (if (number-or-marker-p pos)
-                    (when-let ((node (my/structural-focus--node-at pos scope)))
-                      (if (my/structural-focus--has-children node)
+                                  (define-key vertico-map (kbd "C-<return>")
+                                    (lambda ()
+                                      (interactive)
+                                      (setq my/structural-focus-action 'drill)
+                                      (if (fboundp 'vertico-exit)
+                                          (vertico-exit)
+                                        (exit-minibuffer)))))
+                              (consult--read
+                               items
+                               :prompt "Symbols: "
+                               :require-match t
+                               :category 'imenu
+                               :lookup #'consult--lookup-cons
+                               :sort nil
+                               :state (let ((preview (consult--jump-preview)))
+                                        (lambda (action cand)
+                                          (when (eq action 'cursor)
+                                            (when-let ((m (cdr cand))
+                                                       ((markerp m))
+                                                       (node (my/structural-focus--node-at
+                                                              (marker-position m) scope)))
+                                              (setq my/structural--highlighted-node node)
+                                              (when (fboundp 'outline-show-entry)
+                                                (ignore-errors
+                                                  (save-excursion
+                                                    (my/structural--goto-node-start node)
+                                                    (outline-show-entry))))))
+                                          (funcall preview action
+                                                   (when-let ((m (cdr cand)))
+                                                     (and (markerp m) m)))))))
+                          (quit nil)))
+                       (pos (cond
+                          ((markerp result) (marker-position result))
+                          ((and (consp result) (markerp (cdr result)))
+                           (marker-position (cdr result)))
+                          ((number-or-marker-p result) result)
+                          (t nil)))
+                       (action my/structural-focus-action))
+                  (mapc (lambda (item) (when (markerp (cdr item))
+                                         (set-marker (cdr item) nil)))
+                        items)
+                  (setq my/structural-focus-action nil)
+                  (cond
+                   ((eq action 'drill)
+                    (if (number-or-marker-p pos)
+                        (when-let ((node (my/structural-focus--node-at pos scope)))
+                          (if (my/structural-focus--has-children node)
+                              (progn
+                                (push scope stack)
+                                (setq scope node)
+                                (setq my/structural-scope node)
+                                (setq my/structural-scope-stack stack)
+                                (my/structural--breadcrumb)
+                                (when (fboundp 'outline-hide-other)
+                                  (ignore-errors
+                                    (save-excursion
+                                      (my/structural--goto-node-start node)
+                                      (outline-hide-other)))))
+                            (my/structural-jump pos)
+                            (setq my/structural-scope nil)
+                            (setq my/structural-scope-stack nil)
+                            (throw 'my/structural-focus-done nil)))
+                      (if stack
                           (progn
-                            (push scope stack)
-                            (setq scope node)
-                            (setq my/structural-scope node)
+                            (setq scope (pop stack))
+                            (setq my/structural-scope scope)
                             (setq my/structural-scope-stack stack))
-                        ;; Leaf node: jump instead of drilling
-                        (my/structural-jump pos)
                         (setq my/structural-scope nil)
                         (setq my/structural-scope-stack nil)
-                        (throw 'my/structural-focus-done nil)))
-                  ;; No pos: treat as pop-up (drill on ".. (up)" or empty)
-                  (if stack
-                      (progn
-                        (setq scope (pop stack))
-                        (setq my/structural-scope scope)
-                        (setq my/structural-scope-stack stack))
+                        (throw 'my/structural-focus-done nil))))
+                   ((eq result 'up)
+                    (setq scope (pop stack))
+                    (setq my/structural-scope scope)
+                    (setq my/structural-scope-stack stack)
+                    (my/structural--breadcrumb))
+                   ((number-or-marker-p pos)
+                    (my/structural-jump pos)
                     (setq my/structural-scope nil)
                     (setq my/structural-scope-stack nil)
-                    (throw 'my/structural-focus-done nil))))
-               ((eq result 'up)
-                (setq scope (pop stack))
-                (setq my/structural-scope scope)
-                (setq my/structural-scope-stack stack))
-               ((number-or-marker-p pos)
-                (my/structural-jump pos)
-                (setq my/structural-scope nil)
-                (setq my/structural-scope-stack nil)
-                (throw 'my/structural-focus-done nil))
-               (t
-                (if stack
-                    (progn
-                      (setq scope (pop stack))
-                      (setq my/structural-scope scope)
-                      (setq my/structural-scope-stack stack))
-                  (setq my/structural-scope nil)
-                  (setq my/structural-scope-stack nil)
-                  (throw 'my/structural-focus-done nil))))))))
+                    (throw 'my/structural-focus-done nil))
+                   (t
+                    (if stack
+                        (progn
+                          (setq scope (pop stack))
+                          (setq my/structural-scope scope)
+                          (setq my/structural-scope-stack stack)
+                          (my/structural--breadcrumb))
+                      (setq my/structural-scope nil)
+                      (setq my/structural-scope-stack nil)
+                      (throw 'my/structural-focus-done nil)))))))
+          (progn
+            (when (and (null my/structural-scope)
+                       (null my/structural-scope-stack)
+                       (= (length stack) entry-depth)
+                       (eq scope entry-scope))
+              (my/structural--cleanup t))
+            (my/structural--cleanup nil))))
     (call-interactively #'consult-imenu)))
 (defun my/structural-focus--children (scope)
   "Return the effective children of SCOPE (nil = file root).
