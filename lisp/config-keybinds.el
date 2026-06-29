@@ -114,11 +114,10 @@ _l_ → right   _L_ → right                                _{_  prev
   ;; outside outline-minor-mode.
   (defhydra hydra-outline (:hint nil)
     "
-^n_: next heading      ^a_: show all      _q_: exit
-^N_: prev heading      _s_: peek entry    _ESC_: exit
-                      _c_/_TAB_: cycle
-                      _h_: hide sublevels
-                      _H_: hide body
+_n_: next heading       _a_: show all         _q_: quit
+_N_: prev heading       _s_: peek entry       _ESC_: quit
+_c_: cycle              _h_: hide sublevels
+_TAB_: cycle            _H_: hide body
 "
     ("n" outline-next-heading)
     ("N" outline-previous-heading)
