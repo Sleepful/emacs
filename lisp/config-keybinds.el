@@ -108,19 +108,22 @@ _l_ → right   _L_ → right                                _{_  prev
     ("{" tab-previous)
     ("}" tab-next))
 
-  ;; Outline navigation.  Sticky menu so you can tap n/N repeatedly
+  ;; Outline navigation.  Sticky menu so you can tap n/p repeatedly
   ;; without re-pressing SPC.  Requires outline-minor-mode for headings,
   ;; which `;s` lazy-enables on first invocation.  No-op gracefully
   ;; outside outline-minor-mode.
+  ;;
+  ;; n / p use the *-visible-heading variants to skip lines whose text
+  ;; is currently hidden (e.g. after TAB cycle hides a subtree).
   (defhydra hydra-outline (:hint nil)
     "
-_n_: next heading       _a_: show all         _q_: quit
-_N_: prev heading       _s_: peek entry       _ESC_: quit
-_c_: cycle              _h_: hide sublevels
-_TAB_: cycle            _H_: hide body
+_n_: next visible heading  _a_: show all      _q_: quit
+_p_: prev visible heading  _s_: peek entry    _ESC_: quit
+_c_: cycle                 _h_: hide sublevels
+_TAB_: cycle               _H_: hide body
 "
-    ("n" outline-next-heading)
-    ("N" outline-previous-heading)
+    ("n" my/next-visible-heading)
+    ("p" my/previous-visible-heading)
     ("a" outline-show-all)
     ("s" outline-show-entry)
     ("h" outline-hide-sublevels)

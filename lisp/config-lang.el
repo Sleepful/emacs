@@ -169,6 +169,47 @@ outline-minor-mode is preserved (becomes persistent for travel)."
     (goto-char (treesit-node-start node))
     (beginning-of-line)))
 
+(defun my/next-visible-heading (arg)
+  "Move to next visible heading line.
+ARG positive walks forward; negative walks backward.
+Safe replacement for `outline-next-visible-heading': the built-in loops
+with `treesit-outline-search' when current point is on a heading
+whose body is hidden by outline folding (the search re-finds the same
+invisible heading without advancing).  This version advances past
+invisible headings and bounds iterations for safety."
+  (interactive "p")
+  (let* ((arg (or arg 1))
+         (step (if (< arg 0) -1 1))
+         (count (abs arg))
+         (max-iter 10000))
+    (dotimes (_ count)
+      (let ((start-pos (point))
+            (iter 0)
+            (found nil))
+        (catch 'done
+          (while (< iter max-iter)
+            (setq iter (1+ iter))
+            (cond
+             ((bobp) (throw 'done nil))
+             ((eobp) (throw 'done nil)))
+            (condition-case nil
+                (if (> step 0)
+                    (outline-next-heading)
+                  (outline-previous-heading))
+              (error (throw 'done nil)))
+            (cond
+             ((= (point) start-pos) (throw 'done nil))
+             ((outline-invisible-p (line-beginning-position))
+              (forward-line step))
+             (t (setq found t) (throw 'done t))))
+          (unless found (goto-char start-pos))))
+      (back-to-indentation))))
+
+(defun my/previous-visible-heading (arg)
+  "Move to previous visible heading line.  ARG controls repeat."
+  (interactive "p")
+  (my/next-visible-heading (- (or arg 1))))
+
 (defun my/structural-focus ()
   "Symbol explorer with drill-down and outline preview.
 RET jumps.  C-RET drills into children.  Highlighted candidate reveals

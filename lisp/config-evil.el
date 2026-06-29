@@ -78,13 +78,17 @@
 (with-eval-after-load 'evil
   (evil-global-set-key 'motion (kbd "]b") #'my/persp-next-buffer)
   (evil-global-set-key 'motion (kbd "[b") #'my/persp-prev-buffer)
-  ;; Heading nav under ]]/[[.  Overrides evil's evil-forward-section-begin
-  ;; / evil-backward-section-begin (sections duplicate paragraph motion
-  ;; and our outline enables finer heading jumps via treesit predicate).
-  ;; Lazy-enabled by outline-minor-mode being turned on by the first `;s`
-  ;; invocation; outside TS buffers these no-op gracefully.
-  (evil-global-set-key 'motion (kbd "]]") #'outline-next-heading)
-  (evil-global-set-key 'motion (kbd "[[") #'outline-previous-heading)
+  ;; Heading nav under ]]/[[.  Overrides evil's section-begin/end motion.
+  ;; Sections duplicate paragraph motion and our outline enables finer
+  ;; heading jumps via treesit predicate.  Lazy-enabled by outline-minor-mode
+  ;; being turned on by the first `;s` invocation.
+  ;; The custom `my/next-visible-heading' is safer than the built-in:
+  ;; `outline-next-visible-heading' hangs in an infinite loop with
+  ;; `treesit-outline-search' when current point sits on a heading
+  ;; whose body is outline-hidden (the search re-finds the same
+  ;; invisible heading without advancing point).
+  (evil-global-set-key 'motion (kbd "]]") #'my/next-visible-heading)
+  (evil-global-set-key 'motion (kbd "[[") #'my/previous-visible-heading)
   ;; evil-collection-unimpaired binds ]b/[b AND ]]/[[ in an auxiliary
   ;; normal-state keymap that outranks evil-normal-state-map.  Override
   ;; both the buffer-key case and the prefix-recurse case there.
@@ -96,8 +100,8 @@
            (km-open (cdr bracket-open)))
       (define-key km-close (kbd "b") 'my/persp-next-buffer)
       (define-key km-open (kbd "b") 'my/persp-prev-buffer)
-      (define-key km-close (kbd "]") 'outline-next-heading)
-      (define-key km-open (kbd "[") 'outline-previous-heading))))
+      (define-key km-close (kbd "]") 'my/next-visible-heading)
+      (define-key km-open (kbd "[") 'my/previous-visible-heading))))
 
 (with-eval-after-load 'evil
   ;; Escape to normal in minibuffers
