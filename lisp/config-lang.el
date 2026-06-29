@@ -172,11 +172,18 @@ outline-minor-mode is preserved (becomes persistent for travel)."
 (defun my/next-visible-heading (arg)
   "Move to next visible heading line.
 ARG positive walks forward; negative walks backward.
+
 Safe replacement for `outline-next-visible-heading': the built-in loops
-with `treesit-outline-search' when current point is on a heading
-whose body is hidden by outline folding (the search re-finds the same
-invisible heading without advancing).  This version advances past
-invisible headings and bounds iterations for safety."
+with `treesit-outline-search' when current point is on a heading whose
+body is hidden by outline folding (the search re-finds the same
+invisible heading without advancing).
+
+Frame-of-reference: one outer call = one outline heading step.  When
+the search lands on a heading with the body hidden, we forward-line
+past it and try the next one.  When we land on something that is
+not a heading line, we revert to the snapshot of the last visible
+heading we successfully landed on, so the cursor never gets stranded
+on an empty post-EOF line.  No loops in the recovery path."
   (interactive "p")
   (let* ((arg (or arg 1))
          (step (if (< arg 0) -1 1))
@@ -184,27 +191,28 @@ invisible headings and bounds iterations for safety."
          (max-iter 10000))
     (dotimes (_ count)
       (let ((start-pos (point))
-            (iter 0)
-            (found nil))
-        (catch 'done
-          (while (< iter max-iter)
-            (setq iter (1+ iter))
-            (cond
-             ((bobp) (throw 'done nil))
-             ((eobp) (throw 'done nil)))
-            (condition-case nil
-                (if (> step 0)
-                    (outline-next-heading)
-                  (outline-previous-heading))
-              (error (throw 'done nil)))
-            (cond
-             ((= (point) start-pos) (throw 'done nil))
-             ((outline-invisible-p (line-beginning-position))
-              (forward-line step))
-             (t (setq found t) (throw 'done t))))
-          (unless found (goto-char start-pos))))
-      (back-to-indentation))))
-
+            (last-good-pos (point)))
+        (let ((done nil))
+          (let ((iter 0))
+            (while (and (not done) (< iter max-iter))
+              (setq iter (1+ iter))
+              (condition-case nil
+                  (if (> step 0)
+                      (outline-next-heading)
+                    (outline-previous-heading))
+                (error (setq done t)))
+              (cond
+               ((= (point) start-pos) (setq done t))
+               ((outline-invisible-p (line-beginning-position))
+                (forward-line step))
+               ((outline-on-heading-p)
+                (setq last-good-pos (point))
+                (setq done t))
+               (t (setq done t))))))
+        (when (and (not (outline-on-heading-p))
+                   (not (eq (point) start-pos)))
+          (goto-char start-pos)))
+      (when (outline-on-heading-p) (back-to-indentation)))))
 (defun my/previous-visible-heading (arg)
   "Move to previous visible heading line.  ARG controls repeat."
   (interactive "p")
