@@ -1,0 +1,24 @@
+#!/bin/sh
+# bin/install-parinfer -- one-shot bootstrap for the parinfer CLI.
+#
+# Installs the `parinfer` npm package under ~/.config/emacs/node_modules
+# so bin/parinfer can `require('parinfer')` from a stable path.
+# Idempotent: re-running is a no-op if the package is already present.
+set -e
+
+MODULES_DIR="${HOME}/.config/emacs/node_modules"
+
+if [ -d "${MODULES_DIR}/parinfer" ] && \
+   [ -f "${MODULES_DIR}/parinfer/package.json" ]; then
+  echo "parinfer already installed at ${MODULES_DIR}/parinfer"
+  exit 0
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm not found in PATH" >&2
+  exit 1
+fi
+
+mkdir -p "${MODULES_DIR}"
+cd "${MODULES_DIR}"
+npm install parinfer

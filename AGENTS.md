@@ -92,3 +92,26 @@ bin/check-parens lisp/core.el lisp/config-evil.el
 ```
 
 Prints file:line for extra closes, or final balance if unclosed opens remain. Non-zero exit means the file won't load.
+
+**`bin/parinfer`** — rebalance parens from indentation on a single Lisp file in place. Reads `<file>`, runs `parinfer.indentMode(text, {forceBalance: true})` (npm `parinfer@3.x`, ISC), writes back only if changed.
+
+```
+bin/parinfer path/to/file.el
+```
+
+Use when **parens are wrong but indentation is intentional** — agents — DiffSynth, Aider, Codex — frequently produce code where the paren count from the model is off but the leading whitespace reflects what the author meant. Indent-mode with `forceBalance: true` is the canonical move: close-parens snap to where the indentation says they belong, and orphan unbalanced parens are also fixed. After parinfer, the file is parse-correct by construction — **`bin/check-parens` is for hand-typed Lisp that bypassed parinfer, not for post-parinfer verification.**
+
+**Caveats**
+
+- Parinfer trusts indentation. Mis-indented code gets wrong parens. **Conversely, valid Lisp whose indentation does not match Parinfer's heuristic rules will be silently rewritten** — including line shifts of trailing close parens. **Treat parinfer as a fix-on-demand tool, not an always-applied formatter.** Run it once when parens need repair; do not loop it through edit pipelines, since agents reading line-based state (LSPs, code maps) will desync if every file shifts every cycle.
+- The visual close-parens after each line get **dimmed** in editors that respect Parinfer styling — they are inferred, not literal. After a parinfer write, do not be surprised by the trailing-paren positions in your file.
+- Force-balance mode (`forceBalance: true`) is the v1 aggressive-balance rule. With the default `false`, orphan unbalanced parens stay put and only recoverable ones get fixed. Use force-balance here.
+- **Idempotent**: if `result.text === input.text`, no write happens; mtime is preserved.
+
+**Bootstrap** — first run only:
+
+```
+bin/install-parinfer
+```
+
+Installs `parinfer` under `~/.config/emacs/node_modules/`. Idempotent. The CLI requires Node and npm.

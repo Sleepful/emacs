@@ -1,0 +1,56 @@
+#!/usr/bin/env node
+// bin/parinfer -- run parinfer indent-mode on a Lisp file in place.
+//
+// Reads the file, runs parinfer.indentMode(text, {forceBalance: true}),
+// writes result.text back only if it differs from the input.
+// parinfer is resolved from ~/.config/emacs/node_modules/parinfer.
+//
+// Usage: bin/parinfer <file>
+// Exit:  0 on success (or no-op), 1 on parse failure, 2 on bad args.
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const MODULES_DIR = path.join(os.homedir(), '.config', 'emacs', 'node_modules');
+
+function fail(msg, code) {
+  process.stderr.write('parinfer: ' + msg + '\n');
+  process.exit(code);
+}
+
+const filePath = process.argv[2];
+if (!filePath) fail('usage: bin/parinfer <file>', 2);
+
+let parinfer;
+try {
+  parinfer = require(path.join(MODULES_DIR, 'parinfer'));
+} catch (e) {
+  fail('parinfer package not found at ' + path.join(MODULES_DIR, 'parinfer') + ' -- run bin/install-parinfer first', 1);
+}
+
+let text;
+try {
+  text = fs.readFileSync(filePath, 'utf8');
+} catch (e) {
+  fail('cannot read ' + filePath + ': ' + e.message, 1);
+}
+
+const result = parinfer.indentMode(text, { forceBalance: true });
+
+if (!result.success) {
+  const errMsg = result.error && result.error.message ? result.error.message : JSON.stringify(result.error);
+  fail('parse failure in ' + filePath + ': ' + errMsg, 1);
+}
+
+if (result.text === text) {
+  // No change -- skip the write so we don't bump mtime.
+  process.exit(0);
+}
+
+try {
+  fs.writeFileSync(filePath, result.text);
+} catch (e) {
+  fail('cannot write ' + filePath + ': ' + e.message, 1);
+}
