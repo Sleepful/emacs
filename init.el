@@ -17,6 +17,7 @@
 (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
 
 (require 'core)
+(require 'config-project)
 (require 'config-evil)
 (require 'config-roam)
 (require 'config-keybinds)

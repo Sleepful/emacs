@@ -9,6 +9,8 @@
   (setq evil-want-C-u-scroll t)
   (setq evil-want-Y-yank-to-eol t)
   (setq evil-undo-system 'undo-redo)
+  (setq evil-want-minibuffer t)
+  (setq evil-collection-setup-minibuffer t)
   :config
   (evil-set-initial-state 'messages-buffer-mode 'normal)
   (evil-mode 1)
@@ -23,7 +25,7 @@
   :after evil
   :demand t
   :init
-  (setq evil-collection-mode-list '(magit eglot org-roam))
+  (setq evil-collection-mode-list '(magit eglot org-roam minibuffer))
   :config
   (evil-collection-init))
 
