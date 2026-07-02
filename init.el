@@ -31,13 +31,7 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
-  '(package-selected-packages
-    '(catppuccin-theme consult dashboard dash dirvish doom-themes
-		      ef-themes evil evil-collection evil-org exec-path-from-shell
-		      general hydra magit magit-delta marginalia
-		      odin-ts-mode orderless org-roam outline-indent perspective
-		      restart-emacs treesit-auto use-package vertico
-		      which-key))
+ '(package-selected-packages nil)
  '(package-vc-selected-packages
    '((odin-ts-mode :url "https://github.com/Sampie159/odin-ts-mode"))))
 (custom-set-faces

@@ -11,6 +11,13 @@
 (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-ts-mode))
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . tsx-ts-mode))
 
+;; Markdown with tree-sitter highlighting (Emacs 32 ships markdown-ts-mode).
+(use-package markdown-mode)
+(add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-ts-mode))
+(add-to-list 'treesit-language-source-alist
+             '(markdown "https://github.com/tree-sitter-grammars/tree-sitter-markdown"
+                        "main" "src" nil))
+
 (defun my/ts-imenu-name (node)
   "Return the imenu name for a TypeScript declaration NODE."
   (let ((name-node
@@ -302,7 +309,7 @@ Falls back to consult-imenu for non-tree-sitter buffers."
                                :state (let ((preview (consult--jump-preview)))
                                         (lambda (action cand)
                                           (when (eq action 'cursor)
-                                            (when-let ((m (cdr cand))
+                                            (when-let* ((m (cdr cand))
                                                        ((markerp m))
                                                        (node (my/structural-focus--node-at
                                                               (marker-position m) scope)))
@@ -313,7 +320,7 @@ Falls back to consult-imenu for non-tree-sitter buffers."
                                                     (my/structural--goto-node-start node)
                                                     (outline-show-entry))))))
                                           (funcall preview action
-                                                   (when-let ((m (cdr cand)))
+                                                   (when-let* ((m (cdr cand)))
                                                      (and (markerp m) m)))))))
                           (quit nil)))
                        (pos (cond
@@ -330,7 +337,7 @@ Falls back to consult-imenu for non-tree-sitter buffers."
                   (cond
                    ((eq action 'drill)
                     (if (number-or-marker-p pos)
-                        (when-let ((node (my/structural-focus--node-at pos scope)))
+                        (when-let* ((node (my/structural-focus--node-at pos scope)))
                           (if (my/structural-focus--has-children node)
                               (progn
                                 (push scope stack)
@@ -491,7 +498,7 @@ so drilling yields the declarations inside, not empty container levels."
 
 (defun my/treesit-node-display-name (node)
   "Return a display name for NODE from its name field, or its text."
-  (or (when-let ((name-node (treesit-node-child-by-field-name node "name")))
+  (or (when-let* ((name-node (treesit-node-child-by-field-name node "name")))
         (treesit-node-text name-node t))
       (my/treesit-node-anon-text node)))
 
@@ -584,7 +591,7 @@ Skips intermediate `plain-list' containers."
                   :state (let ((preview (consult--jump-preview)))
                           (lambda (action cand)
                             (funcall preview action
-                                     (when-let ((m (cdr cand)))
+                                     (when-let* ((m (cdr cand)))
                                         (and (markerp m) m)))))
                   :require-match t
                   :category 'imenu
@@ -626,6 +633,16 @@ Skips intermediate `plain-list' containers."
   :vc (:url "https://github.com/Sampie159/odin-ts-mode")
   :mode "\\.odin\\'")
 
+;; Go
+(add-to-list 'auto-mode-alist '("\\.go\\'" . go-ts-mode))
+
+;; Rust
+(add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-ts-mode))
+
+;; Python
+(add-to-list 'auto-mode-alist '("\\.py\\'" . python-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.pyi\\'" . python-ts-mode))
+
 ;; LSP via eglot (built-in)
 ;; Only start for file-backed buffers (skips dirvish preview, *scratch*, etc.)
 
@@ -640,12 +657,18 @@ Skips intermediate `plain-list' containers."
 (use-package eglot
   :hook ((typescript-ts-mode . eglot-ensure-if-selected)
          (tsx-ts-mode . eglot-ensure-if-selected)
-         (odin-ts-mode . eglot-ensure-if-selected))
+         (odin-ts-mode . eglot-ensure-if-selected)
+         (go-ts-mode . eglot-ensure-if-selected)
+         (rust-ts-mode . eglot-ensure-if-selected)
+         (python-ts-mode . eglot-ensure-if-selected))
   :config
   (add-to-list 'eglot-server-programs '(odin-ts-mode . ("ols")))
   (add-to-list 'eglot-server-programs
                '((typescript-ts-mode tsx-ts-mode)
-                 . ("vtsls" "--stdio"))))
+                 . ("vtsls" "--stdio")))
+  (add-to-list 'eglot-server-programs '(go-ts-mode . ("gopls")))
+  (add-to-list 'eglot-server-programs '(rust-ts-mode . ("rust-analyzer")))
+  (add-to-list 'eglot-server-programs '(python-ts-mode . ("basedpyright-langserver" "--stdio"))))
 
 (provide 'config-lang)
 ;;; config-lang.el ends here

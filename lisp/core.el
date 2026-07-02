@@ -5,6 +5,8 @@
   :demand t
   :init
   (setq exec-path-from-shell-check-startup-files nil)
+  (setq exec-path-from-shell-only-a-handful-of-vars t)
+  (setq exec-path-from-shell-variables '("PATH"))
   :config
   (exec-path-from-shell-initialize))
 
@@ -185,7 +187,7 @@
   (define-key evil-normal-state-map (kbd "z s")
               (lambda ()
                 (interactive)
-                (when-let ((level (outline-level)))
+                (when-let* ((level (outline-level)))
                   (outline-hide-sublevels level)))))
 
 ;; Popup showing available keybindings after a prefix
@@ -226,7 +228,7 @@ Loaded perspectives use persp-switch directly; unloaded ones (dimmed)
 use my-persp-switch which loads from disk before switching."
     (require 'perspective)
     (dashboard-insert-heading "Perspectives:" nil (dashboard-heading-icon 'perspectives))
-    (if-let ((persps (ignore-errors (my-persp-names))))
+    (if-let* ((persps (ignore-errors (my-persp-names))))
         (progn
           (mapc (lambda (el)
                   (let ((loaded (gethash el (perspectives-hash))))
@@ -245,7 +247,7 @@ use my-persp-switch which loads from disk before switching."
                                    :button-suffix ""
                                    :format "%[%t%]")))
                 (dashboard-subseq persps list-size))
-          (when-let ((sc (dashboard-get-shortcut 'perspectives)))
+          (when-let* ((sc (dashboard-get-shortcut 'perspectives)))
             (dashboard-insert-shortcut 'perspectives sc "Perspectives:")))
       (insert (propertize "\n    --- No items ---" 'face 'dashboard-no-items-face))))
   (add-to-list 'dashboard-item-generators '(perspectives . dashboard-insert-perspectives))

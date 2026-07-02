@@ -42,7 +42,7 @@
 Uses perspective name as the slug — no collision risk because names are
 user-controlled.  Returns \"perspectives/<name>/\" or empty string for
 root directory (when no perspective is active, e.g. scratch buffer)."
-  (if-let ((name (persp-current-name)))
+  (if-let* ((name (persp-current-name)))
       (let* ((slug (downcase name))
              (subdir (concat "perspectives/" slug "/"))
              (full (expand-file-name subdir org-roam-directory)))
@@ -68,7 +68,7 @@ then the stamped hash table, then scans buffers in MRU order."
   (let* ((f (buffer-file-name))
          (current-root (when (and f (not (string-prefix-p org-roam-directory
                                                           (expand-file-name f))))
-                         (when-let ((pr (project-current nil (file-name-directory f))))
+                         (when-let* ((pr (project-current nil (file-name-directory f))))
                            (project-root pr))))
          (root (or current-root
                    (my-persp-last-project-root)
@@ -116,10 +116,120 @@ then the stamped hash table, then scans buffers in MRU order."
   (evil-org-set-key-theme '(textobjects insert navigation additional shift todo heading))
   (evil-define-key '(normal visual motion) org-mode-map
     "]]" 'org-next-visible-heading
-    "[[" 'org-previous-visible-heading))
+    "[[" 'org-previous-visible-heading)
+
+  ;;; org-paste-subtree prefix semantics.  Calling
+  ;;; (org-paste-subtree N) from Lisp passes N as the level arg,
+  ;;; which `prefix-numeric-value' reads as a forced depth — not
+  ;;; the same as the C-u interactive prefix.  To produce the
+  ;;; documented "paste after at same level" we set
+  ;;; current-prefix-arg before call-interactively.  Source: org.el.
+  (defun my/org-paste-subtree-after ()
+    "Paste most-recent subtree after the current heading at the same level.
+Forces the C-u prefix that org-paste-subtree reads for the after direction."
+    (interactive)
+    (let ((current-prefix-arg '(4)))
+      (call-interactively #'org-paste-subtree)))
+
+  (defun my/org-paste-subtree-before ()
+    "Paste most-recent subtree before the current heading.
+Cursor must sit at the heading start; org-paste-subtree only pastes
+before when point is at the heading start."
+    (interactive)
+    (org-paste-subtree))
+
+  ;; Local leader.  Only active in org-mode buffers; outside org,
+  ;; which-key shows nothing for "-" and the dash prefix is inert.
+  ;;
+  ;; Surface the most common org operations under one prefix so the
+  ;; user can discover them via which-key instead of memorizing
+  ;; C-c C-... mnemonics.  The leading - prefix means Evil motion
+  ;; letters that double as bindings here (a, c, p, s, etc.) are
+  ;; only shadowed by these keys; pressing them directly without
+  ;; the prefix still behaves as Evil expects.
+  ;;
+  ;; Default is lowercase.  Two uppercase exceptions:
+  ;;   P  paste-before, kept uppercase to mirror vim's p/P pairing.
+  ;;   A  archive subtree — `a` is taken by agenda and no clean
+  ;;      lowercase slot remains (x: cut, s: schedule, d: deadline).
+  ;;
+  ;; Mnemonic notes:
+  ;;   < / > mirror vim's << / >> indent: < shallower (promote),
+  ;;   > deeper (demote).  [ ] are bracket-marker jumps.  { } are
+  ;;   fold open / close.  * is the literal star org-toggle-heading
+  ;;   adds/removes.  x/y/p follow vim: x cut, y yank (copy),
+  ;;   p / P paste after / before.
+  (major-mode-leader
+    :keymaps 'org-mode-map
+
+    ;; Structure & outline ---------------------
+    "*" '(org-toggle-heading              :wk "toggle heading/list")
+    "<" '(org-promote-subtree             :wk "promote")
+    ">" '(org-demote-subtree              :wk "demote")
+    "[" '(org-previous-visible-heading    :wk "prev heading")
+    "]" '(org-next-visible-heading        :wk "next heading")
+    "{" '(outline-hide-subtree            :wk "hide subtree")
+    "}" '(outline-show-subtree            :wk "show subtree")
+
+    ;; TODO & state ----------------------------
+    "t" '(org-todo                        :wk "todo state")          ;; C-c C-t
+
+    ;; Refile & move ---------------------------
+    "w" '(org-refile                      :wk "refile")              ;; C-c C-w
+
+    ;; Dates & timestamps ----------------------
+    "." '(org-time-stamp                  :wk "timestamp")          ;; C-c .
+    "!" '(org-time-stamp-inactive         :wk "timestamp inactive")  ;; C-c !
+    "s" '(org-schedule                    :wk "schedule")            ;; C-c C-s
+    "d" '(org-deadline                    :wk "deadline")            ;; C-c C-d
+
+    ;; Links -----------------------------------
+    "o" '(org-open-at-point               :wk "follow link/open")    ;; C-c C-o
+    "l" '(org-store-link                  :wk "store link")          ;; C-c C-l
+
+    ;; Tags & filter ---------------------------
+    "q" '(org-set-tags-command            :wk "set tags")            ;; C-c C-q
+    "/" '(org-sparse-tree                 :wk "sparse tree")         ;; C-c /
+    "r" '(org-reveal                      :wk "reveal")              ;; C-c C-r
+
+    ;; Capture & agenda ------------------------
+    "c" '(org-capture                     :wk "capture")             ;; C-c c
+    "a" '(org-agenda                      :wk "agenda")              ;; C-c a
+
+    ;; Export ----------------------------------
+    "e" '(org-export-dispatch             :wk "export")              ;; C-c C-e
+
+    ;; Subtree clipboard -----------------------
+    ;; x cut, y yank (copy), p / P paste after / before — vim trio.
+    "x" '(org-cut-subtree                 :wk "cut subtree")         ;; C-c C-x C-w
+    "y" '(org-copy-subtree                :wk "copy subtree")        ;; C-c C-x M-w
+    "p" '(my/org-paste-subtree-after      :wk "paste subtree after") ;; C-u + C-c C-x C-y
+    "P" '(my/org-paste-subtree-before     :wk "paste subtree before");; C-c C-x C-y at heading start
+
+    ;; Archive ---------------------------------
+    "A" '(org-archive-subtree             :wk "archive subtree")     ;; C-c C-x C-a
+
+    ;; Visibility ------------------------------
+    "TAB" '(org-cycle                     :wk "cycle visibility")))
 
 (with-eval-after-load 'perspective
   (add-hook 'find-file-hook #'my-stamp-project-root))
+
+;; Strip every `ol-*' link module from `org-modules'.  Default value
+;; ships with `ol-doi ol-w3m ol-bbdb ol-bibtex ol-docview ol-gnus
+;; ol-info ol-irc ol-mhe ol-rmail ol-eww' and `org-load-modules-maybe'
+;; (called from `org-mode') does a hard `(require EXT)' per entry on
+;; every .org buffer activation.  Each EXT pulls in a parent module
+;; (gnus, w3m, eww, …) that is not installed on this config, surfacing
+;; `Problems while trying to load feature `ol-XXX'' messages.
+;; `org-link-frame-setup' (cons cell with `gnus' etc.) is left intact —
+;; this only affects the autoloaded link modules.  The relevant
+;; defcustom lives inside `org.el', so we cannot `setq' before org
+;; loads.
+(with-eval-after-load 'org
+  (setq org-modules
+        (cl-remove-if (lambda (s) (string-prefix-p "ol-" (symbol-name s)))
+                      org-modules)))
 
 (provide 'config-roam)
 ;;; config-roam.el ends here

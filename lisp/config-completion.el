@@ -30,7 +30,8 @@
 (require 'ansi-color)
 
 ;; Enhanced search and navigation commands (buffer switch, grep, line search)
-(use-package consult)
+(use-package consult
+  :demand t)
 
 (with-eval-after-load 'consult
   (setq consult-ripgrep-args
@@ -116,7 +117,7 @@
 (defun consult-ripgrep-in-dir ()
   (interactive)
   (let* ((root (expand-file-name
-                (or (when-let ((pr (project-current))) (project-root pr))
+                (or (when-let* ((pr (project-current))) (project-root pr))
                     default-directory)))
          (dirs (cons "." (split-string
                          (shell-command-to-string
@@ -129,7 +130,7 @@
 (defun consult-fd-in-dir ()
   (interactive)
   (let* ((root (expand-file-name
-                (or (when-let ((pr (project-current))) (project-root pr))
+                (or (when-let* ((pr (project-current))) (project-root pr))
                     default-directory)))
          (dirs (cons "." (split-string
                          (shell-command-to-string

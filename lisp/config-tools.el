@@ -61,6 +61,25 @@
   (define-key dirvish-mode-map (kbd "g g") 'evil-goto-first-line)
   (define-key dirvish-mode-map (kbd "G") 'evil-goto-line))
 
+(defun my-reap-buffers ()
+  "Kill buffers in the current perspective not visible in any window.
+Skips buffers whose names start with `*' (special buffers).  Prompts
+once with the count before killing."
+  (interactive)
+  (let* ((visible (delete-dups (mapcar #'window-buffer (window-list))))
+         (buried  (cl-remove-if
+                   (lambda (b)
+                     (or (member b visible)
+                         (string-prefix-p "*" (buffer-name b))))
+                   (persp-current-buffers))))
+    (if (null buried)
+        (message "No buried buffers to reap.")
+      (when (y-or-n-p (format "Reap %d buried buffer(s)? " (length buried)))
+        (let ((n 0))
+          (dolist (b buried)
+            (when (kill-buffer b) (cl-incf n)))
+          (message "Reaped %d buffer(s)." n))))))
+
 (defun persp-quit-buffer ()
   (interactive)
   (let ((buf (current-buffer)))
@@ -71,7 +90,7 @@
 (defun persp-switch-set-project-root ()
   (when-let* ((buf (cl-find-if
                     (lambda (b)
-                      (when-let ((f (buffer-file-name b)))
+                      (when-let* ((f (buffer-file-name b)))
                         (not (string-prefix-p org-roam-directory
                                               (expand-file-name f)))))
                     (cl-remove-if-not
@@ -162,7 +181,7 @@ advice fires before persp-switch changes context)."
               (find-file f)))
           ;; Ensure all opened buffers are in the perspective
           (dolist (b buffers)
-            (when-let ((buf (get-file-buffer b)))
+            (when-let* ((buf (get-file-buffer b)))
               (unless (persp-is-current-buffer buf)
                 (persp-add-buffer buf))))
           ;; Restore window layout
@@ -175,7 +194,7 @@ advice fires before persp-switch changes context)."
           ;; Start eglot now that suppression has lifted
           (let ((eglot-server-programs (default-value 'eglot-server-programs)))
             (dolist (b buffers)
-              (when-let ((buf (get-file-buffer b)))
+              (when-let* ((buf (get-file-buffer b)))
                 (with-current-buffer buf
                   (eglot-ensure)))))))
     t)))
@@ -193,7 +212,7 @@ advice fires before persp-switch changes context)."
                                      when (and (buffer-live-p b)
                                                (buffer-file-name b))
                                      collect (buffer-file-name b)))
-                   (point (when-let ((m (persp-point-marker persp)))
+                   (point (when-let* ((m (persp-point-marker persp)))
                             (and (marker-position m)
                                  (marker-position m))))
                    (data `(persp-state (buffers ,buffers)
@@ -229,7 +248,7 @@ advice fires before persp-switch changes context)."
   (advice-add 'persp-switch :before
               (lambda (name &rest _)
                 (unless my-persp-saving
-                  (when-let ((old-name (persp-current-name)))
+                  (when-let* ((old-name (persp-current-name)))
                     (unless (equal old-name name)
                       (let ((my-persp-saving t))
                         (ignore-errors (my-persp-save old-name))))))))
@@ -278,7 +297,7 @@ advice fires before persp-switch changes context)."
 (defun my-copy-file-name ()
   "Copy the current buffer's file path to the kill ring."
   (interactive)
-  (if-let ((f (buffer-file-name)))
+  (if-let* ((f (buffer-file-name)))
       (progn (kill-new f)
              (message "Copied: %s" f))
     (message "No file for this buffer")))

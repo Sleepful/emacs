@@ -89,6 +89,12 @@
   ;; invisible heading without advancing point).
   (evil-global-set-key 'motion (kbd "]]") #'my/next-visible-heading)
   (evil-global-set-key 'motion (kbd "[[") #'my/previous-visible-heading)
+  ;; M-]/M-[ alt-form for muscles tired of double-tapping ]]/[[.
+  ;; Same motion tier as ]]/[[: no `:before' advice, no lazy outline
+  ;; enablement — `SPC o' stays the only enablement path.  Shadows
+  ;; `forward-page' / `backward-page'; Evil uses C-f/C-b for paging.
+  (evil-global-set-key 'motion (kbd "M-]") #'my/next-visible-heading)
+  (evil-global-set-key 'motion (kbd "M-[") #'my/previous-visible-heading)
   ;; evil-collection-unimpaired binds ]b/[b AND ]]/[[ in an auxiliary
   ;; normal-state keymap that outranks evil-normal-state-map.  Override
   ;; both the buffer-key case and the prefix-recurse case there.

@@ -55,7 +55,16 @@
   (general-create-definer backslash-leader
     :states '(normal visual)
     :keymaps 'override
-    :prefix "\\"))
+    :prefix "\\")
+
+  ;; - -- local leader.  Reserved for major-mode-only submenus.
+  ;; Bindings attach to a chosen major-mode keymap (e.g. org-mode-map)
+  ;; so which-key and the keys themselves only surface inside that
+  ;; mode.  No global dash prefix is created.
+  (general-create-definer major-mode-leader
+    :states '(normal visual)
+    :keymaps 'override
+    :prefix "-"))
 
 (defun my-toggle-messages ()
   "Toggle the *Messages* buffer.
@@ -152,6 +161,7 @@ _TAB_: cycle               _H_: hide body
   "b q" '(persp-quit-buffer :wk "quit")
   "b k" '(kill-buffer :wk "kill")
   "b m" '(my-toggle-messages :wk "messages")
+  "b r" '(my-reap-buffers :wk "reap")
 
   "f"   '(:ignore t :wk "files")
   "f f" '(find-file :wk "files")
