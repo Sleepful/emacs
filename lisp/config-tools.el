@@ -278,7 +278,14 @@ advice fires before persp-switch changes context)."
 
 (use-package magit-delta
   :after magit
-  :hook (magit-mode . magit-delta-mode))
+  :hook (magit-mode . magit-delta-mode)
+  :config
+  (setq magit-delta-delta-args
+        `("--max-line-distance" "0.6"
+          "--true-color" ,(if xterm-color--support-truecolor "always" "never")
+          "--color-only"
+          "--no-gitconfig"
+          "--navigate")))
 
 ;; One-shot restart: kills daemon, starts new one, opens Emacs Client.app
 (defun my-restart-emacs ()
