@@ -112,13 +112,20 @@
       (define-key km-open (kbd "[") 'my/previous-visible-heading))))
 
 (with-eval-after-load 'evil
-  ;; Escape to normal in minibuffers
-  (dolist (map '(minibuffer-local-map
-                  minibuffer-local-ns-map
-                  minibuffer-local-completion-map
-                  minibuffer-local-must-match-map
-                  minibuffer-local-isearch-map))
-    (define-key (symbol-value map) (kbd "<escape>") 'evil-normal-state)))
+  ;; Minibuffer: enter insert state on activation, ESC then leaves to normal.
+  ;; The minibuffer has no major mode, so `evil-set-initial-state' won't work
+  ;; here (see `elpa/evil-collection-20260624.327/modes/minibuffer/evil-collection-minibuffer.el:47-48').
+  ;; We hook directly into `minibuffer-setup-hook' so the state is locked the
+  ;; moment the minibuffer is created, regardless of which command opened it
+  ;; (M-x, consult, evil-ex).  Evil's built-in ESC binding on
+  ;; `evil-insert-state-map' fires `evil-normal-state' on the first ESC, then
+  ;; a second ESC aborts via `evil-esc's default tag (`abort-recursive-edit').
+  (add-hook 'minibuffer-setup-hook
+            (lambda ()
+              (setq-local evil-default-state 'insert)
+              (unless (and (boundp 'evil-local-mode) evil-local-mode)
+                (evil-local-mode 1))
+              (evil-insert-state 1))))
 
 (provide 'config-evil)
 ;;; config-evil.el ends here
