@@ -25,7 +25,8 @@
   :after evil
   :demand t
   :init
-  (setq evil-collection-mode-list '(magit eglot org-roam minibuffer))
+  (setq evil-collection-mode-list '(magit eglot org-roam minibuffer)
+        evil-collection-want-unimpaired-p nil)
   :config
   (evil-collection-init))
 
@@ -78,38 +79,11 @@
           (switch-to-buffer prev))))))
 
 (with-eval-after-load 'evil
-  (evil-global-set-key 'motion (kbd "]b") #'my/persp-next-buffer)
-  (evil-global-set-key 'motion (kbd "[b") #'my/persp-prev-buffer)
-  ;; Heading nav under ]]/[[.  Overrides evil's section-begin/end motion.
-  ;; Sections duplicate paragraph motion and our outline enables finer
-  ;; heading jumps via treesit predicate.  Lazy-enabled by outline-minor-mode
-  ;; being turned on by the first `;s` invocation.
-  ;; The custom `my/next-visible-heading' is safer than the built-in:
-  ;; `outline-next-visible-heading' hangs in an infinite loop with
-  ;; `treesit-outline-search' when current point sits on a heading
-  ;; whose body is outline-hidden (the search re-finds the same
-  ;; invisible heading without advancing point).
-  (evil-global-set-key 'motion (kbd "]]") #'my/next-visible-heading)
-  (evil-global-set-key 'motion (kbd "[[") #'my/previous-visible-heading)
-  ;; M-]/M-[ alt-form for muscles tired of double-tapping ]]/[[.
-  ;; Same motion tier as ]]/[[: no `:before' advice, no lazy outline
-  ;; enablement — `SPC o' stays the only enablement path.  Shadows
-  ;; `forward-page' / `backward-page'; Evil uses C-f/C-b for paging.
-  (evil-global-set-key 'motion (kbd "M-]") #'my/next-visible-heading)
-  (evil-global-set-key 'motion (kbd "M-[") #'my/previous-visible-heading)
-  ;; evil-collection-unimpaired binds ]b/[b AND ]]/[[ in an auxiliary
-  ;; normal-state keymap that outranks evil-normal-state-map.  Override
-  ;; both the buffer-key case and the prefix-recurse case there.
-  (when (boundp 'evil-collection-unimpaired-mode-map)
-    (let* ((aux (assq 'normal-state evil-collection-unimpaired-mode-map))
-           (bracket-close (assq 93 (cdr aux)))
-           (bracket-open (assq 91 (cdr aux)))
-           (km-close (cdr bracket-close))
-           (km-open (cdr bracket-open)))
-      (define-key km-close (kbd "b") 'my/persp-next-buffer)
-      (define-key km-open (kbd "b") 'my/persp-prev-buffer)
-      (define-key km-close (kbd "]") 'my/next-visible-heading)
-      (define-key km-open (kbd "[") 'my/previous-visible-heading))))
+  (dolist (state '(normal motion))
+    (evil-global-set-key state (kbd "[") #'my/previous-visible-heading)
+    (evil-global-set-key state (kbd "]") #'my/next-visible-heading)
+    (evil-global-set-key state (kbd "M-]") #'my/persp-next-buffer)
+    (evil-global-set-key state (kbd "M-[") #'my/persp-prev-buffer)))
 
 (with-eval-after-load 'evil
   ;; Minibuffer: enter insert state on activation, ESC then leaves to normal.

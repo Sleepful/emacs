@@ -114,9 +114,6 @@ then the stamped hash table, then scans buffers in MRU order."
   (add-hook 'org-mode-hook 'evil-org-mode)
   :config
   (evil-org-set-key-theme '(textobjects insert navigation additional shift todo heading))
-  (evil-define-key '(normal visual motion) org-mode-map
-    "]]" 'org-next-visible-heading
-    "[[" 'org-previous-visible-heading)
 
   ;;; org-paste-subtree prefix semantics.  Calling
   ;;; (org-paste-subtree N) from Lisp passes N as the level arg,
