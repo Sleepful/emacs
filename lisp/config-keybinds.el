@@ -165,7 +165,7 @@ _TAB_: cycle               _H_: hide body
 
   "f"   '(:ignore t :wk "files")
   "f f" '(find-file :wk "files")
-  "f s" '(save-buffer :wk "write")
+  "f w" '(save-buffer :wk "write")
   "f r" '(recentf-open-files :wk "recent")
 
   "s"   '(:ignore t :wk "search")
@@ -214,7 +214,8 @@ _TAB_: cycle               _H_: hide body
   "e n" '(flymake-goto-next-error :wk "next error")
   "e p" '(flymake-goto-prev-error :wk "prev error")
 
-  "h"   '(:ignore t :wk "help")
+  "h h" '(eldoc-doc-buffer :wk "help buffer")
+  "h e" '(my/eldoc-pop :wk "doc at point")
 
   "n"   '(:ignore t :wk "notes")
   "n f" '(org-roam-node-find :wk "find node")

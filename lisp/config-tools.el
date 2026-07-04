@@ -309,5 +309,93 @@ advice fires before persp-switch changes context)."
              (message "Copied: %s" f))
     (message "No file for this buffer")))
 
+(defvar-local my--eldoc-trigger-pos nil
+  "Source point when the eldoc doc window was opened.")
+
+(defun my--eldoc-auto-close ()
+  "Close eldoc doc window when source cursor leaves trigger symbol."
+  (when (and my--eldoc-trigger-pos
+             (/= (point) my--eldoc-trigger-pos)
+             (boundp 'eldoc--doc-buffer)
+             (buffer-live-p eldoc--doc-buffer))
+    (let ((w (get-buffer-window eldoc--doc-buffer)))
+      (when (and w (window-live-p w))
+        (delete-window w)))
+    (setq my--eldoc-trigger-pos nil)
+    (remove-hook 'post-command-hook #'my--eldoc-auto-close t)))
+
+(defun my/eldoc--resize-window (w)
+  "Resize W displaying eldoc--doc-buffer to fit its content height."
+  (when (and w (window-live-p w))
+    (let* ((cur (window-height w))
+           (cap (ceiling (* 0.7 (frame-height))))
+           (target (min (max 3 (with-current-buffer (window-buffer w)
+                                   (+ 2 (line-number-at-pos (point-max)))))
+                       cap)))
+      (unless (= target cur)
+        (condition-case nil
+            (window-resize w (- target cur))
+          (error nil))))))
+
+(defun my/eldoc-fit-window--on-change (&rest _)
+  "Re-fit the *eldoc* window as its content grows or shrinks."
+  (when (and (boundp 'eldoc--doc-buffer)
+             (buffer-live-p eldoc--doc-buffer))
+    (let ((w (get-buffer-window eldoc--doc-buffer)))
+      (when (and w (window-live-p w))
+        (my/eldoc--resize-window w)))))
+
+(defun my/eldoc-fit-window ()
+  "Fit the eldoc doc window now and on every subsequent content update."
+  (when (and (boundp 'eldoc--doc-buffer)
+             (buffer-live-p eldoc--doc-buffer))
+    (with-current-buffer eldoc--doc-buffer
+      (add-hook 'after-change-functions
+                #'my/eldoc-fit-window--on-change nil t))
+    (let ((w (get-buffer-window eldoc--doc-buffer)))
+      (when (and w (window-live-p w))
+        (my/eldoc--resize-window w)))))
+
+
+(defun my/eldoc-pop ()
+  "Open persistent *eldoc* doc window; auto-fit; auto-close on cursor exit."
+  (interactive)
+  (require 'eldoc)
+  (setq-local my--eldoc-trigger-pos (point))
+  (add-hook 'post-command-hook #'my--eldoc-auto-close nil t)
+  (eldoc-doc-buffer t)
+  (my/eldoc-fit-window))
+
+(defun my/eldoc-fitter (buf _alist)
+  "Display BUF (eldoc doc) in a window fitted to its content."
+  (or (let ((existing (get-buffer-window buf 0)))
+        (when (and existing (window-live-p existing))
+          (my/eldoc--resize-window existing)
+          existing))
+      (let ((win (split-window (frame-root-window) nil 'below)))
+        (set-window-buffer win buf)
+        (my/eldoc--resize-window win)
+        win)))
+
+(defun my/eldoc--after-format-doc (&rest _)
+  "Re-install resize hook and resize *eldoc* window after content update.
+`eldoc--format-doc-buffer' calls `special-mode' which kills buffer-local
+variables, wiping our `after-change-functions' hook. This advice fires
+after each content update and restores the resize setup."
+  (when (and (boundp 'eldoc--doc-buffer)
+             (buffer-live-p eldoc--doc-buffer))
+    (with-current-buffer eldoc--doc-buffer
+      (add-hook 'after-change-functions
+                #'my/eldoc-fit-window--on-change nil t))
+    (let ((w (get-buffer-window eldoc--doc-buffer)))
+      (when (and w (window-live-p w))
+        (my/eldoc--resize-window w)))))
+
+(advice-add 'eldoc--format-doc-buffer :after #'my/eldoc--after-format-doc)
+
+(add-to-list
+ 'display-buffer-alist
+ '("\\*eldoc" my/eldoc-fitter))
+
 (provide 'config-tools)
 ;;; config-tools.el ends here

@@ -26,7 +26,8 @@
   :demand t
   :init
   (setq evil-collection-mode-list '(magit eglot org-roam minibuffer)
-        evil-collection-want-unimpaired-p nil)
+        evil-collection-want-unimpaired-p nil
+        evil-collection-binding-overrides '((lookup-doc :enabled nil)))
   :config
   (evil-collection-init))
 
@@ -83,7 +84,8 @@
     (evil-global-set-key state (kbd "[") #'my/previous-visible-heading)
     (evil-global-set-key state (kbd "]") #'my/next-visible-heading)
     (evil-global-set-key state (kbd "M-]") #'my/persp-next-buffer)
-    (evil-global-set-key state (kbd "M-[") #'my/persp-prev-buffer)))
+    (evil-global-set-key state (kbd "M-[") #'my/persp-prev-buffer)
+    (evil-global-set-key state (kbd "K") #'my/eldoc-pop)))
 
 (with-eval-after-load 'evil
   ;; Minibuffer: enter insert state on activation, ESC then leaves to normal.
