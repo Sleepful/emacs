@@ -235,7 +235,8 @@ _TAB_: cycle               _H_: hide body
   "f" '(find-file :wk "find file")
   "r" '(consult-ripgrep :wk "ripgrep")
   "l" '(my-persp-switch :wk "layouts")
-  "e" '(flymake-show-project-diagnostics :wk "errors"))
+  "e" '(flymake-show-project-diagnostics :wk "errors")
+  "n" '(org-roam-node-find :wk "find note"))
 
 ;;;; - -- (vacant, right hand, top row)
 ;; (dash-leader)
