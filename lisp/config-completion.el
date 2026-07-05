@@ -52,6 +52,55 @@
                   :predicate (lambda (buf)
                                (memq buf (persp-current-buffers)))))))
 
+  ;; Bat-based ripgrep preview
+  (defun consult--bat-ripgrep-buffer (cand)
+    "Create a bat-rendered preview buffer for grep candidate CAND."
+    (let* ((str (if (consp cand) (car cand) cand))
+           (file-end (next-single-property-change 0 'face str))
+           (line-end (when file-end
+                       (next-single-property-change (1+ file-end) 'face str)))
+           (file (and file-end (substring-no-properties str 0 file-end)))
+           (line (and file-end line-end
+                      (string-to-number (substring-no-properties str (1+ file-end) line-end)))))
+      (when (and file line (file-exists-p file))
+        (with-current-buffer (generate-new-buffer " *consult-bat-rg*")
+          (let ((inhibit-read-only t))
+            (condition-case nil
+                (call-process "bat" nil t nil
+                              "--color=always" "--style=plain"
+                              "--paging=never"
+                              (format "--line-range=%d:" line)
+                              file)
+              (error (insert "No preview available")))
+            (ansi-color-apply-on-region (point-min) (point-max))
+            (goto-char (point-min))
+            (setq buffer-read-only t)
+            (fundamental-mode)
+            (setq-local header-line-format
+                        (propertize (format "%s:%d" file line)
+                                    'face 'header-line)))
+          (current-buffer)))))
+
+  (defun consult--bat-ripgrep-state ()
+    "Grep state with bat-powered syntax-highlighted preview."
+    (let ((orig (consult--grep-state))
+          (prev-buf nil))
+      (lambda (action cand)
+        (when (and prev-buf (not (eq action 'preview)))
+          (kill-buffer prev-buf)
+          (setq prev-buf nil))
+        (if (eq action 'preview)
+            (when-let* ((cand)
+                        (buf (consult--bat-ripgrep-buffer cand)))
+              (when prev-buf
+                (kill-buffer prev-buf))
+              (setq prev-buf buf)
+              (switch-to-buffer buf 'norecord))
+          (funcall orig action cand)))))
+
+  (consult-customize consult-ripgrep
+                     :state (consult--bat-ripgrep-state))
+
   ;; Bat-based file preview (fast, like dirvish)
   (defun consult--bat-file-preview ()
     "Create preview function that uses bat for fast file preview."
@@ -126,6 +175,10 @@
                          "\n" t)))
          (dir (completing-read "Ripgrep in: " dirs nil t)))
     (consult-ripgrep (expand-file-name dir root))))
+
+(with-eval-after-load 'consult
+  (consult-customize consult-ripgrep-in-dir
+                     :state (consult--bat-ripgrep-state)))
 
 (defun consult-fd-in-dir ()
   (interactive)

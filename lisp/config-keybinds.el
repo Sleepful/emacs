@@ -231,8 +231,9 @@ _TAB_: cycle               _H_: hide body
 ;; Large scope: project, perspective, frame.
 (comma-leader
   "," '(consult-buffer :wk "buffers")
-  "f" '(my-persp-project-find-file :wk "find file")
-  "g" '(consult-ripgrep :wk "grep")
+  "p" '(my-persp-project-find-file :wk "project files")
+  "f" '(find-file :wk "find file")
+  "r" '(consult-ripgrep :wk "ripgrep")
   "l" '(my-persp-switch :wk "layouts")
   "e" '(flymake-show-project-diagnostics :wk "errors"))
 
@@ -261,6 +262,7 @@ _TAB_: cycle               _H_: hide body
 (quote-leader
   "w" '(save-buffer :wk "write")
   "r" '(revert-buffer :wk "revert")
+  "R" '(rename-visited-file :wk "rename")
   "f" '(write-file :wk "fork")
   "y" '(my-copy-file-name :wk "yank path")
   "-" '(dirvish :wk "dirvish")
