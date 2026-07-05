@@ -135,6 +135,18 @@ before when point is at the heading start."
     (interactive)
     (org-paste-subtree))
 
+  (defun my/org-toggle-checkbox-cycle ()
+    "Cycle list item: none -> [ ] -> [x] -> none."
+    (interactive)
+    (cond
+     ((org-at-item-checkbox-p)
+      (let ((checked (equal "[X]" (match-string 1))))
+        (if checked
+            (org-toggle-checkbox '(4))
+          (org-toggle-checkbox))))
+     (t
+      (org-toggle-checkbox '(4)))))
+
   ;; Local leader.  Only active in org-mode buffers; outside org,
   ;; which-key shows nothing for "-" and the dash prefix is inert.
   ;;
@@ -167,9 +179,12 @@ before when point is at the heading start."
     "]" '(org-next-visible-heading        :wk "next heading")
     "{" '(outline-hide-subtree            :wk "hide subtree")
     "}" '(outline-show-subtree            :wk "show subtree")
+    "n" '(org-narrow-to-subtree           :wk "narrow to subtree")  ;; C-x n s
+    "N" '(widen                            :wk "widen")               ;; C-x n w
 
     ;; TODO & state ----------------------------
     "t" '(org-todo                        :wk "todo state")          ;; C-c C-t
+    "-" '(my/org-toggle-checkbox-cycle     :wk "cycle checkbox")      ;; none -> [ ] -> [x]
 
     ;; Refile & move ---------------------------
     "w" '(org-refile                      :wk "refile")              ;; C-c C-w

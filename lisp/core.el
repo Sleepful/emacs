@@ -135,6 +135,20 @@
 (setq initial-scratch-message nil)
 (setq ring-bell-function 'ignore)
 
+;; Modeline — doom-modeline with nerd-icons (uses the Nerd Font already set above)
+(use-package nerd-icons)
+
+(use-package doom-modeline
+  :demand t
+  :init (doom-modeline-mode 1)
+  :config
+  (setq doom-modeline-height 28)
+  (setq doom-modeline-bar-width 4)
+  (setq doom-modeline-buffer-file-name-style 'relative-from-project)
+  (setq doom-modeline-icon t)
+  (setq doom-modeline-major-mode-icon t)
+  (setq doom-modeline-buffer-encoding nil))
+
 ;; Quality-of-life
 (setq make-backup-files nil)
 (setq auto-save-default nil)

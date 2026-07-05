@@ -32,7 +32,14 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(package-selected-packages nil)
+ '(package-selected-packages
+   '(catppuccin-theme consult dashboard dirvish doom-modeline doom-themes
+		      ef-themes eldoc-box evil-collection evil-org
+		      exec-path-from-shell general hydra magit-delta
+		      marginalia markdown-mode nerd-icons odin-ts-mode
+		      orderless org-roam outline-indent perspective
+		      restart-emacs shrink-path treesit-auto
+		      use-package vertico which-key))
  '(package-vc-selected-packages
    '((odin-ts-mode :url "https://github.com/Sampie159/odin-ts-mode"))))
 (custom-set-faces
